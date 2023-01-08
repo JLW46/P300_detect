@@ -38,6 +38,7 @@ for i in range(np.shape(data_pkg_test['X_norm'])[0]):
         Y_test = np.concatenate([Y_test, data_pkg_test['Y'][i]], axis=0)
 
 model = util_tf._cecotti_cnn1(in_shape=[64, 192, 1], out_shape=2)
+# model = util_tf._eegnet(in_shape=[64, 192, 1], out_shape=2)
 model.fit(x=X_train, y=Y_train, epochs=20, batch_size=16)
 print('Training Complete')
 model.evaluate(x=X_test, y=Y_test)
