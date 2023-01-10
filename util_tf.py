@@ -29,6 +29,86 @@ def _depth_conv2D(X, n_mult, k_size, strides, activation=None, padding='same', u
                                      depthwise_constraint=weight_constraint)(X)
     return X
 
+def _mbconv(X, kern=(3,3), t=4, reduction=False, SE=True):
+    use_bias = False
+    if reduction:
+        strides = (2, 2)
+    else:
+        strides = (1, 1)
+    in_ch = X.shape[-1]
+    kernel_initializer = tf.initializers.GlorotUniform()
+    Res = X
+    X = keras.layers.Conv2D(in_ch*t,
+                            kernel_size=(1, 1),
+                            kernel_regularizer=None,
+                            activation=None,
+                            kernel_initializer=kernel_initializer,
+                            strides=(1, 1),
+                            padding='same',
+                            use_bias=use_bias)(X)
+    X = keras.layers.ReLU(max_value=6, negative_slope=0.0, threshold=0.0)(X)
+
+    X = _depth_conv2D(X, n_mult=1, k_size=kern, strides=strides, activation=None, padding='same',
+                      use_bias=False, weight_constraint=None)
+    X = keras.layers.ReLU(max_value=6, negative_slope=0.0, threshold=0.0)(X)
+    X = keras.layers.Conv2D(in_ch,
+                            kernel_size=(1, 1),
+                            kernel_regularizer=None,
+                            activation=None,
+                            kernel_initializer=kernel_initializer,
+                            strides=(1, 1),
+                            padding='same',
+                            use_bias=use_bias)(X)
+    if reduction:
+        pass
+    else:
+        X = keras.layers.add([X, Res])
+    return X
+
+def _mbconvFused(X, kern=(3, 3), t=4, reduction=False, SE=True):
+    use_bias = False
+    if reduction:
+        strides = (2, 2)
+    else:
+        strides = (1, 1)
+    in_ch = X.shape[-1]
+    kernel_initializer = tf.initializers.GlorotUniform()
+    Res = X
+    X = keras.layers.Conv2D(in_ch*t, kernel_size=kern,
+                            kernel_regularizer=None,
+                            activation=None,
+                            kernel_initializer=kernel_initializer,
+                            strides=strides,
+                            padding='same',
+                            use_bias=use_bias)(X)
+    X = keras.layers.ReLU(max_value=6, negative_slope=0.0, threshold=0.0)(X)
+    if SE:
+        SE_branch = tf.keras.layers.GlobalAveragePooling2D(keepdims=False)(X)
+        SE_size = SE_branch.shape[-1]
+        SE_reduction_ratio = 0.25
+        SE_branch = tf.keras.layers.Dense(int(SE_size*SE_reduction_ratio), kernel_initializer=kernel_initializer,
+                           kernel_regularizer=None, activation='relu')(SE_branch)
+        SE_branch = tf.keras.layers.Dense(SE_size, kernel_initializer=kernel_initializer,
+                                          kernel_regularizer=None, activation='relu')(SE_branch)
+        scaler = tf.reshape(SE_branch, shape=[-1, 1, 1, SE_size], name='scaler')
+        X = X*scaler
+    else:
+        pass
+    X = keras.layers.Conv2D(in_ch,
+                            kernel_size=(1, 1),
+                            kernel_regularizer=None,
+                            activation=None,
+                            kernel_initializer=kernel_initializer,
+                            strides=(1, 1),
+                            padding='same',
+                            use_bias=use_bias)(X)
+    if reduction:
+        pass
+    else:
+        X = keras.layers.add([X, Res])
+
+    return X
+
 def _cecotti_cnn1(in_shape, out_shape):
     # input = [chs, sample_pts]
     N = 10
@@ -44,7 +124,7 @@ def _cecotti_cnn1(in_shape, out_shape):
                            kernel_regularizer=None, activation=None)(X)
     X = keras.layers.Dense(out_shape, kernel_initializer=kernel_initializer,
                            kernel_regularizer=None, activation='sigmoid')(X)
-    model = keras.models.Model(input, X, name="test_model")
+    model = keras.models.Model(input, X, name="cecotti")
     model.summary()
     model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.001),
                   loss=keras.losses.MeanSquaredError(),
@@ -57,7 +137,7 @@ def _eegnet(in_shape, out_shape):
     weight_constraints_1 = keras.constraints.MinMaxNorm(min_value=-1.0, max_value=1.0, rate=1.0, axis=0)
     weight_constraints_2 = keras.constraints.MinMaxNorm(min_value=-0.25, max_value=0.25, rate=1.0, axis=0)
     kernel_initializer = tf.initializers.GlorotUniform()
-    dropout_rate = 0.5
+    dropout_rate = 0.2
     F1 = 8
     D = 2
     F2 = F1*D
@@ -84,7 +164,24 @@ def _eegnet(in_shape, out_shape):
     X = keras.layers.Dense(out_shape, kernel_initializer=kernel_initializer, use_bias=False,
                            kernel_constraint=weight_constraints_2,
                            kernel_regularizer=None, activation='Softmax')(X)
-    model = keras.models.Model(input, X, name="test_model")
+    model = keras.models.Model(input, X, name="eegnet")
+    model.summary()
+    model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.001),
+                  loss=keras.losses.MeanSquaredError(),
+                  metrics=keras.metrics.CategoricalAccuracy(),
+                  loss_weights=[5, 1])
+    return model
+
+def _effnetV2(in_shape, out_shape):
+    kernel_initializer = tf.initializers.GlorotUniform()
+    input = keras.layers.Input(shape=in_shape)
+    X = _mbconvFused(input, kern=(1, 3), t=4, reduction=True, SE=True)
+
+
+
+    X = keras.layers.Dense(out_shape, kernel_initializer=kernel_initializer,
+                           kernel_regularizer=None, activation='sigmoid')(X)
+    model = keras.models.Model(input, X, name="efnetV2")
     model.summary()
     model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.001),
                   loss=keras.losses.MeanSquaredError(),
@@ -94,3 +191,4 @@ def _eegnet(in_shape, out_shape):
 # test
 # model = _cecotti_cnn1([64, 192, 1], 2)
 # model = _eegnet([64, 128, 1], 2)
+model = _effnetV2([1, 192, 64], 2)

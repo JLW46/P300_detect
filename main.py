@@ -5,18 +5,19 @@ import matplotlib.pyplot as plt
 import util_preprocessing
 import util_tf
 
-# PATH1 = r'data/BCI_Comp_III_Wads_2004/Subject_A_Train.mat'
-# PATH2 = r'data/BCI_Comp_III_Wads_2004/Subject_A_Test.mat'
-PATH1 = r'data/BCI_Comp_III_Wads_2004/Subject_B_Train.mat'
-PATH2 = r'data/BCI_Comp_III_Wads_2004/Subject_B_Test.mat'
+PATH1 = r'data/BCI_Comp_III_Wads_2004/Subject_A_Train.mat'
+PATH2 = r'data/BCI_Comp_III_Wads_2004/Subject_A_Test.mat'
+# PATH1 = r'data/BCI_Comp_III_Wads_2004/Subject_B_Train.mat'
+# PATH2 = r'data/BCI_Comp_III_Wads_2004/Subject_B_Test.mat'
 TRUE_LABELS_A = 'WQXPLZCOMRKO97YFZDEZ1DPI9NNVGRQDJCUVRMEUOOOJD2UFYPOO6J7LDGYEGOA5VHNEHBTXOO1TDOILUEE5BFAEEXAW_K4R3MRU'
 TRUE_LABELS_B = 'MERMIROOMUHJPXJOHUVLEORZP3GLOO7AUFDKEFTWEOOALZOP9ROCGZET1Y19EWX65QUYU7NAK_4YCJDVDNGQXODBEV2B5EFDIDNR'
 FREQ = 240 #Hz
 WIN = int(0.8*FREQ)
 CH = 64
 
-data_pkg_test = util_preprocessing._build_dataset_p300_test(PATH2, WIN, CH, TRUE_LABELS_B, epochs=1)
-data_pkg_train = util_preprocessing._build_dataset_p300(PATH1, WIN, CH, epochs=1)
+data_pkg_test = util_preprocessing._build_dataset_p300_test(PATH2, WIN, CH, TRUE_LABELS_A, epochs=1, ch_last=True)
+data_pkg_train = util_preprocessing._build_dataset_p300(PATH1, WIN, CH, epochs=1, ch_last=True)
+
 
 X_train = None
 Y_train = None
