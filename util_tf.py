@@ -133,11 +133,10 @@ def _cecotti_cnn1(in_shape, out_shape):
     return model
 
 
-def _eegnet(in_shape, out_shape):
+def _eegnet(in_shape, out_shape, loss_weights=[1, 1], dropout_rate=0.2):
     weight_constraints_1 = keras.constraints.MinMaxNorm(min_value=-1.0, max_value=1.0, rate=1.0, axis=0)
     weight_constraints_2 = keras.constraints.MinMaxNorm(min_value=-0.25, max_value=0.25, rate=1.0, axis=0)
     kernel_initializer = tf.initializers.GlorotUniform()
-    dropout_rate = 0.2
     F1 = 8
     D = 2
     F2 = F1*D
@@ -188,7 +187,37 @@ def _effnetV2(in_shape, out_shape):
                   metrics=keras.metrics.CategoricalAccuracy(),
                   loss_weights=[5, 1])
     return model
+
+def _confusion_matrix(Y_pred, Y_true):
+    TP = 0
+    TN = 0
+    FP = 0
+    FN = 0
+    P = 0
+    N = 0
+    for i in range(np.shape(Y_pred)[0]):
+        if Y_true[i, 0] == 1:
+            P = P + 1
+            if Y_pred[i, 0] > Y_pred[i, 1]:
+                TP = TP + 1
+            else:
+                FN = FN + 1
+        else:
+            N = N + 1
+            if Y_pred[i, 0] < Y_pred[i, 1]:
+                TN = TN + 1
+            else:
+                FP = FP + 1
+    out = {
+        'matrix': np.array([[TP/P, FN/P], [FP/N, TN/N]]),
+        'TP': TP/P,
+        'FN': FN/P,
+        'TN': TN/N,
+        'FP': FP/N
+    }
+    return out
+
 # test
 # model = _cecotti_cnn1([64, 192, 1], 2)
-# model = _eegnet([64, 128, 1], 2)
-model = _effnetV2([1, 192, 64], 2)
+# model = _eegnet([60, 250, 1], 2)
+# model = _effnetV2([1, 192, 64], 2)

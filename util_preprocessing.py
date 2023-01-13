@@ -1,5 +1,7 @@
 import numpy as np
 import scipy
+import os
+import mne
 
 
 P300_SPELLER = {
@@ -192,12 +194,68 @@ def _P300_speller(char):
         else:
             r = r + 1
     return r, c
-#
-# def _multi_epochs(data_pkg, epochs=1):
-#     X = data_pkg['X']
-#     Y = data_pkg['Y']
-#     target_ind = data_pkg['target_ind']
-#     prev_ind = -1
-#     for i in range(np.shape(X)[0]):
-#         if target_ind[i] > prev_ind:
-#             # start
+
+def _build_dataset_eeglab(FOLDER, TRAIN, TEST, CLASS):
+    files = os.listdir(FOLDER)
+    X_train = None
+    Y_train = None
+    X_test = None
+    Y_test = None
+    for file_name in files:
+        if file_name.endswith('.set'):
+            PATH = os.path.join(FOLDER, file_name)
+            X, X_norm, Y = _read_data_eeglab(PATH=PATH, CLASS=CLASS, epochs=1, ch_last=False)
+            if file_name in TRAIN:
+                if X_train is None:
+                    X_train = X_norm
+                    Y_train = Y
+                else:
+                    X_train = np.concatenate([X_train, X_norm], axis=0)
+                    Y_train = np.concatenate([Y_train, Y], axis=0)
+            elif file_name in TEST:
+                if X_test is None:
+                    X_test = X_norm
+                    Y_test = Y
+                else:
+                    X_test = np.concatenate([X_test, X_norm], axis=0)
+                    Y_test = np.concatenate([Y_test, Y], axis=0)
+    summation = np.sum(Y_train, axis=0)
+    loss_weights = []
+    for i in range(len(summation)):
+        loss_weights.append(1/summation[i])
+    loss_weights = np.array(loss_weights)
+    loss_weights = loss_weights/np.sum(loss_weights)
+    return X_train, Y_train, X_test, Y_test, loss_weights
+
+def _get_event(events, event_id):
+    out = events[:, 2]
+    key_list = list(event_id.keys())
+    val_list = list(event_id.values())
+    for i in range(len(out)):
+        out[i] = int(key_list[val_list.index(out[i])].split('/')[0])
+    return out
+
+def _read_data_eeglab(PATH, CLASS, epochs=1, ch_last=False):
+    data_pkg = mne.read_epochs_eeglab(PATH)
+    events = _get_event(data_pkg.events, data_pkg.event_id)
+    data = data_pkg._data
+    CH = np.shape(data)[1]
+    T = np.shape(data)[2]
+    X = []
+    X_norm = []
+    Y = []
+    for i in range(np.shape(data)[0]):
+        Y.append(CLASS[str(events[i])])
+        x = data[i, :, :]
+        x_norm = (x - np.repeat(np.reshape(np.mean(x, axis=1), (CH, 1)), T, axis=1))/(
+            np.repeat(np.reshape(np.std(x, axis=1), (CH, 1)), T, axis=1))
+        if ch_last:
+            X.append(np.reshape(x.T, (1, T, CH)))
+            X_norm.append(np.reshape(x_norm.T, (1, T, CH)))
+        else:
+            X.append(np.reshape(x, (CH, T, 1)))
+            X_norm.append(np.reshape(x_norm, (CH, T, 1)))
+    X = np.array(X)
+    X_norm = np.array(X_norm)
+    Y = np.array(Y)
+    return X, X_norm, Y

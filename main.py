@@ -1,9 +1,11 @@
 import numpy as np
 import os
 import scipy
+import mne
 import matplotlib.pyplot as plt
 import util_preprocessing
 import util_tf
+
 
 PATH1 = r'data/BCI_Comp_III_Wads_2004/Subject_A_Train.mat'
 PATH2 = r'data/BCI_Comp_III_Wads_2004/Subject_A_Test.mat'
