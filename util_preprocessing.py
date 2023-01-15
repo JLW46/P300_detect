@@ -2,6 +2,8 @@ import numpy as np
 import scipy
 import os
 import mne
+import random
+import matplotlib.pyplot as plt
 
 
 P300_SPELLER = {
@@ -195,7 +197,7 @@ def _P300_speller(char):
             r = r + 1
     return r, c
 
-def _build_dataset_eeglab(FOLDER, TRAIN, TEST, CLASS):
+def _build_dataset_eeglab(FOLDER, TRAIN, TEST, CLASS, ch_last=False, trainset_ave=False, testset_ave=False, for_plot=False):
     files = os.listdir(FOLDER)
     X_train = None
     Y_train = None
@@ -204,8 +206,10 @@ def _build_dataset_eeglab(FOLDER, TRAIN, TEST, CLASS):
     for file_name in files:
         if file_name.endswith('.set'):
             PATH = os.path.join(FOLDER, file_name)
-            X, X_norm, Y = _read_data_eeglab(PATH=PATH, CLASS=CLASS, epochs=1, ch_last=False)
+            X, X_norm, Y = _read_data_eeglab(PATH=PATH, CLASS=CLASS, epochs=1, ch_last=ch_last)
             if file_name in TRAIN:
+                if trainset_ave:
+                    X_norm, Y = _random_average(X_norm, Y, fold=5)
                 if X_train is None:
                     X_train = X_norm
                     Y_train = Y
@@ -213,6 +217,8 @@ def _build_dataset_eeglab(FOLDER, TRAIN, TEST, CLASS):
                     X_train = np.concatenate([X_train, X_norm], axis=0)
                     Y_train = np.concatenate([Y_train, Y], axis=0)
             elif file_name in TEST:
+                if testset_ave:
+                    X_norm, Y = _consec_average(X_norm, Y, epochs=2)
                 if X_test is None:
                     X_test = X_norm
                     Y_test = Y
@@ -225,6 +231,9 @@ def _build_dataset_eeglab(FOLDER, TRAIN, TEST, CLASS):
         loss_weights.append(1/summation[i])
     loss_weights = np.array(loss_weights)
     loss_weights = loss_weights/np.sum(loss_weights)
+    if for_plot:
+        X_train = np.concatenate([X_train, X_test], axis=0)
+        Y_train = np.concatenate([Y_train, Y_test], axis=0)
     return X_train, Y_train, X_test, Y_test, loss_weights
 
 def _get_event(events, event_id):
@@ -259,3 +268,39 @@ def _read_data_eeglab(PATH, CLASS, epochs=1, ch_last=False):
     X_norm = np.array(X_norm)
     Y = np.array(Y)
     return X, X_norm, Y
+
+def _random_average(X, Y, fold=1):
+    target_ind = list(np.where(Y[:, 0]==1)[0])
+    X_new = []
+    Y_new = []
+    for i in range(fold):
+        for j in range(len(target_ind)):
+            ind = random.sample(target_ind, i + 2)
+            X_new.append(np.mean(X[ind], axis=0))
+            Y_new.append(Y[ind[0], :])
+    X = np.concatenate([X, np.array(X_new)], axis=0)
+    Y = np.concatenate([Y, np.array(Y_new)], axis=0)
+
+    return X, Y
+
+def _consec_average(X, Y, epochs=2):
+    target_ind = list(np.where(Y[:, 0] == 1)[0])
+    nontarget_ind = list(np.where(Y[:, 1] == 1)[0])
+    X_new = []
+    Y_new = []
+    time_axis = np.linspace(-0.2, 0.8, 1 * 250, endpoint=False)
+    for i in range(len(target_ind)):
+        if (i + epochs) <= len(target_ind):
+            ind = target_ind[i: i + epochs]
+            print(ind)
+            for k in range(len(target_ind)):
+                plt.plot(time_axis, X[target_ind[k], 0, :, 31], 'b')
+            plt.plot(time_axis, np.mean(X[ind], axis=0)[0, :, 31], 'r')
+            plt.grid()
+            plt.show()
+            X_new.append(np.mean(X[ind], axis=0))
+            Y_new.append(Y[ind[0], :])
+    X = np.concatenate([X[nontarget_ind], np.array(X_new)], axis=0)
+    Y = np.concatenate([Y[nontarget_ind], np.array(Y_new)], axis=0)
+
+    return X, Y
