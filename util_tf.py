@@ -149,6 +149,7 @@ def _cecotti_cnn1(in_shape, out_shape):
                   loss_weights=[5, 1])
     return model
 
+
 def _eegnet(in_shape, out_shape, loss_weights=[0.5, 0.5], dropout_rate=0.2):
     weight_constraints_1 = keras.constraints.MinMaxNorm(min_value=-1.0, max_value=1.0, rate=1.0, axis=0)
     weight_constraints_2 = keras.constraints.MinMaxNorm(min_value=-0.25, max_value=0.25, rate=1.0, axis=0)
@@ -181,11 +182,16 @@ def _eegnet(in_shape, out_shape, loss_weights=[0.5, 0.5], dropout_rate=0.2):
                            kernel_regularizer=None, activation='Softmax')(X)
     model = keras.models.Model(input, X, name="eegnet")
     model.summary()
-    model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.001),
-                  loss=keras.losses.MeanSquaredError(),
+    # acc = tf.keras.metrics.AUC(num_thresholds=50, curve='ROC', summation_method='interpolation')
+    model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.0001),
+                  # loss=keras.losses.MeanSquaredError(),
+                  loss=keras.losses.BinaryCrossentropy(),
                   metrics=keras.metrics.CategoricalAccuracy(),
-                  loss_weights=[5, 1])
+                  # metrics=acc,
+                  loss_weights=loss_weights,
+                  weighted_metrics=[])
     return model
+
 
 def _effnetV2(in_shape, out_shape, loss_weights=[0.5, 0.5]):
     kernel_initializer = tf.initializers.GlorotUniform()
@@ -205,12 +211,14 @@ def _effnetV2(in_shape, out_shape, loss_weights=[0.5, 0.5]):
                            kernel_regularizer=None, activation='sigmoid')(X)
     model = keras.models.Model(input, X, name="efnetV2")
     model.summary()
-    model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.001),
+    model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.0001),
                   # loss=keras.losses.MeanSquaredError(),
-                  loss=keras.losses.CategoricalCrossentropy(),
+                  loss=keras.losses.MeanSquaredError(),
                   metrics=keras.metrics.CategoricalAccuracy(),
-                  loss_weights=loss_weights)
+                  loss_weights=loss_weights,
+                  weighted_metrics=[])
     return model
+
 
 def _confusion_matrix(Y_pred, Y_true):
     TP = 0

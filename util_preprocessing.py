@@ -10,6 +10,7 @@ P300_SPELLER = {
     'A'
 }
 
+
 def _build_dataset_p300(PATH, WIN, CH, epochs=1, ch_last=True):
     TARGET = np.array([1, 0])
     NONTARGET = np.array([0, 1])
@@ -95,6 +96,7 @@ def _build_dataset_p300(PATH, WIN, CH, epochs=1, ch_last=True):
 
     return data_pkg
 
+
 def _build_dataset_p300_test(PATH, WIN, CH, LABEL, epochs=1, ch_last=True):
     TARGET = np.array([1, 0])
     NONTARGET = np.array([0, 1])
@@ -175,6 +177,7 @@ def _build_dataset_p300_test(PATH, WIN, CH, LABEL, epochs=1, ch_last=True):
 
     return data_pkg
 
+
 def _P300_speller(char):
     # SPELLER = [['A', 'B', 'C', 'D', 'E', 'F'],
     #            ['G', 'H', 'I', 'J', 'K', 'L'],
@@ -197,44 +200,74 @@ def _P300_speller(char):
             r = r + 1
     return r, c
 
-def _build_dataset_eeglab(FOLDER, TRAIN, TEST, CLASS, ch_last=False, trainset_ave=False, testset_ave=False, for_plot=False):
+
+def _build_dataset_eeglab(FOLDER, TRAIN, TEST, CLASS, ch_last=False,
+                          trainset_ave=False, trainset_copy=False, testset_ave=False, for_plot=False):
     files = os.listdir(FOLDER)
     X_train = None
     Y_train = None
     X_test = None
     Y_test = None
+    events_train = None
+    events_test = None
     for file_name in files:
-        if file_name.endswith('.set'):
+        # if file_name.endswith('.set'):
+        if file_name in TRAIN or file_name in TEST:
             PATH = os.path.join(FOLDER, file_name)
-            X, X_norm, Y = _read_data_eeglab(PATH=PATH, CLASS=CLASS, epochs=1, ch_last=ch_last)
+            X, Y, events = _read_data_eeglab(PATH=PATH, CLASS=CLASS, epochs=1, ch_last=ch_last, norm=True)
             if file_name in TRAIN:
-                if trainset_ave:
-                    X_norm, Y = _random_average(X_norm, Y, fold=5)
+                if trainset_ave is not False:
+                    X, Y = _random_average(X, Y, fold=trainset_ave)
+                elif trainset_copy is True:
+                    X, Y = _copy_balance(X, Y)
                 if X_train is None:
-                    X_train = X_norm
+                    X_train = X
                     Y_train = Y
+                    events_train = events
                 else:
-                    X_train = np.concatenate([X_train, X_norm], axis=0)
+                    X_train = np.concatenate([X_train, X], axis=0)
                     Y_train = np.concatenate([Y_train, Y], axis=0)
+                    events_train = np.concatenate([events_train, events])
             elif file_name in TEST:
-                if testset_ave:
-                    X_norm, Y = _consec_average(X_norm, Y, epochs=2)
+                if testset_ave is not False:
+                    X, Y = _consec_average(X, Y, epochs=testset_ave)
                 if X_test is None:
-                    X_test = X_norm
+                    X_test = X
                     Y_test = Y
+                    events_test = events
                 else:
-                    X_test = np.concatenate([X_test, X_norm], axis=0)
+                    X_test = np.concatenate([X_test, X], axis=0)
                     Y_test = np.concatenate([Y_test, Y], axis=0)
+                    events_test = np.concatenate([events_test, events])
     summation = np.sum(Y_train, axis=0)
-    loss_weights = []
+    summation_test = np.sum(Y_test, axis=0)
+    class_weights = []
+    class_weights_test = []
     for i in range(len(summation)):
-        loss_weights.append(1/summation[i])
-    loss_weights = np.array(loss_weights)
-    loss_weights = loss_weights/np.sum(loss_weights)
+        w_inv = 0
+        for j in range(len(summation)):
+            w_inv = w_inv + summation[i]/summation[j]
+        class_weights.append(1/w_inv)
+    for i in range(len(summation_test)):
+        w_inv = 0
+        for j in range(len(summation_test)):
+            w_inv = w_inv + summation_test[i]/summation_test[j]
+        class_weights_test.append(1/w_inv)
+    class_weights = np.array(class_weights)
+    class_weights_test = np.array(class_weights_test)
+    # loss_weights = loss_weights/np.sum(loss_weights)
+    sample_weights_train = np.ones(np.shape(Y_train)[0])
+    sample_weights_train[np.where(Y_train[:, 0] == 1)[0]] = class_weights[0]
+    sample_weights_train[np.where(Y_train[:, 1] == 1)[0]] = class_weights[1]
+    sample_weights_test = np.ones(np.shape(Y_test)[0])
+    sample_weights_test[np.where(Y_test[:, 0] == 1)[0]] = class_weights_test[0]
+    sample_weights_test[np.where(Y_test[:, 1] == 1)[0]] = class_weights_test[1]
     if for_plot:
         X_train = np.concatenate([X_train, X_test], axis=0)
         Y_train = np.concatenate([Y_train, Y_test], axis=0)
-    return X_train, Y_train, X_test, Y_test, loss_weights
+        events_train = np.concatenate([events_train, events_test])
+    return X_train, Y_train, X_test, Y_test, class_weights, events_train, sample_weights_train, sample_weights_test
+
 
 def _get_event(events, event_id):
     out = events[:, 2]
@@ -244,7 +277,8 @@ def _get_event(events, event_id):
         out[i] = int(key_list[val_list.index(out[i])].split('/')[0])
     return out
 
-def _read_data_eeglab(PATH, CLASS, epochs=1, ch_last=False):
+
+def _read_data_eeglab(PATH, CLASS, epochs=1, ch_last=False, norm=True):
     data_pkg = mne.read_epochs_eeglab(PATH)
     events = _get_event(data_pkg.events, data_pkg.event_id)
     data = data_pkg._data
@@ -256,18 +290,20 @@ def _read_data_eeglab(PATH, CLASS, epochs=1, ch_last=False):
     for i in range(np.shape(data)[0]):
         Y.append(CLASS[str(events[i])])
         x = data[i, :, :]
-        x_norm = (x - np.repeat(np.reshape(np.mean(x, axis=1), (CH, 1)), T, axis=1))/(
-            np.repeat(np.reshape(np.std(x, axis=1), (CH, 1)), T, axis=1))
+        if norm:
+            # remove baseline by [-0.2, 0.0]s
+            x_norm = (x - np.repeat(np.reshape(np.mean(x[:, :50], axis=1), (CH, 1)), T, axis=1))/(
+                    np.repeat(np.reshape(np.std(x[:, -175:], axis=1), (CH, 1)), T, axis=1))
+            x = x_norm
+            # x = x[:, -175] #######
         if ch_last:
             X.append(np.reshape(x.T, (1, T, CH)))
-            X_norm.append(np.reshape(x_norm.T, (1, T, CH)))
         else:
             X.append(np.reshape(x, (CH, T, 1)))
-            X_norm.append(np.reshape(x_norm, (CH, T, 1)))
     X = np.array(X)
-    X_norm = np.array(X_norm)
     Y = np.array(Y)
-    return X, X_norm, Y
+    return X, Y, events
+
 
 def _random_average(X, Y, fold=1):
     target_ind = list(np.where(Y[:, 0]==1)[0])
@@ -283,6 +319,16 @@ def _random_average(X, Y, fold=1):
 
     return X, Y
 
+
+def _copy_balance(X, Y):
+    target_ind = list(np.where(Y[:, 0] == 1)[0])
+    label_sum = np.sum(Y, axis=0)
+    fold = round(label_sum[1]/label_sum[0])
+    X = np.concatenate([X, np.repeat(X[target_ind], fold - 1, axis=0)], axis=0)
+    Y = np.concatenate([Y, np.repeat(Y[target_ind], fold - 1, axis=0)], axis=0)
+    return X, Y
+
+
 def _consec_average(X, Y, epochs=2):
     target_ind = list(np.where(Y[:, 0] == 1)[0])
     nontarget_ind = list(np.where(Y[:, 1] == 1)[0])
@@ -292,12 +338,12 @@ def _consec_average(X, Y, epochs=2):
     for i in range(len(target_ind)):
         if (i + epochs) <= len(target_ind):
             ind = target_ind[i: i + epochs]
-            print(ind)
-            for k in range(len(target_ind)):
-                plt.plot(time_axis, X[target_ind[k], 0, :, 31], 'b')
-            plt.plot(time_axis, np.mean(X[ind], axis=0)[0, :, 31], 'r')
-            plt.grid()
-            plt.show()
+            # print(ind)
+            # for k in range(len(target_ind)):
+            #     plt.plot(time_axis, X[target_ind[k], 0, :, 31], 'b')
+            # plt.plot(time_axis, np.mean(X[ind], axis=0)[0, :, 31], 'r')
+            # plt.grid()
+            # plt.show()
             X_new.append(np.mean(X[ind], axis=0))
             Y_new.append(Y[ind[0], :])
     X = np.concatenate([X[nontarget_ind], np.array(X_new)], axis=0)
