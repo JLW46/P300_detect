@@ -145,14 +145,13 @@ def _cecotti_cnn1(in_shape, out_shape):
     model.summary()
     model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.001),
                   loss=keras.losses.MeanSquaredError(),
-                  metrics=keras.metrics.CategoricalAccuracy(),
-                  loss_weights=[5, 1])
+                  metrics=keras.metrics.CategoricalAccuracy())
     return model
 
 
-def _eegnet(in_shape, out_shape, loss_weights=[0.5, 0.5], dropout_rate=0.2):
+def _eegnet(in_shape, out_shape, dropout_rate=0.2):
     weight_constraints_1 = keras.constraints.MinMaxNorm(min_value=-1.0, max_value=1.0, rate=1.0, axis=0)
-    weight_constraints_2 = keras.constraints.MinMaxNorm(min_value=-0.25, max_value=0.25, rate=1.0, axis=0)
+    weight_constraints_2 = keras.constraints.MinMaxNorm(min_value=-1.0, max_value=1.0, rate=1.0, axis=0)
     kernel_initializer = tf.initializers.GlorotUniform()
     F1 = 8
     D = 2
@@ -173,30 +172,76 @@ def _eegnet(in_shape, out_shape, loss_weights=[0.5, 0.5], dropout_rate=0.2):
     X = _conv2D(X, F2, [1, 1], [1, 1], activation=None, padding='same', use_bias=False)
     X = keras.layers.BatchNormalization()(X)
     X = keras.layers.ELU()(X)
-    X = keras.layers.AveragePooling2D(pool_size=(1, 8), strides=None, padding='valid')(X)
-    X = keras.layers.Dropout(rate=dropout_rate)(X)
+    X = keras.layers.AveragePooling2D(pool_size=(1, 4), strides=None, padding='valid')(X)
+    X = keras.layers.Dropout(rate=2*dropout_rate)(X)
     ### Final ###
     X = keras.layers.Flatten()(X)
     X = keras.layers.Dense(out_shape, kernel_initializer=kernel_initializer, use_bias=False,
                            kernel_constraint=weight_constraints_2,
-                           kernel_regularizer=None, activation='Softmax')(X)
+                           kernel_regularizer=None, activation='sigmoid')(X)
     model = keras.models.Model(input, X, name="eegnet")
     model.summary()
     # acc = tf.keras.metrics.AUC(num_thresholds=50, curve='ROC', summation_method='interpolation')
     model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.0001),
+                  loss=keras.losses.MeanSquaredError(),
+                  # loss=keras.losses.BinaryCrossentropy(),
+                  # loss=keras.losses.CategoricalCrossentropy(),
+                  metrics=keras.metrics.CategoricalAccuracy())
+    return model
+
+
+def _eegnet_1(in_shape, out_shape, dropout_rate=0.2):
+    weight_constraints_1 = keras.constraints.MinMaxNorm(min_value=-1.0, max_value=1.0, rate=1.0, axis=0)
+    weight_constraints_2 = keras.constraints.MinMaxNorm(min_value=-1.0, max_value=1.0, rate=1.0, axis=0)
+    kernel_initializer = tf.initializers.GlorotUniform()
+    input = keras.layers.Input(shape=in_shape)
+    ### Block 1 ###
+    # X_1 = _conv2D(input, 8, [1, int(0.5*in_shape[1])], [1, 1], activation=None, padding='same', use_bias=False)
+    # X_2 = _conv2D(input, 8, [1, 15], [1, 1], activation=None, padding='same', use_bias=False)
+    # X_3 = _conv2D(input, 8, [1, 9], [1, 1], activation=None, padding='same', use_bias=False)
+    # X_4 = _conv2D(input, 8, [1, 5], [1, 1], activation=None, padding='same', use_bias=False)
+    # X = keras.layers.concatenate([X_1, X_2, X_3, X_4], axis=3)
+    X = _conv2D(input, 32, [1, int(0.5 * in_shape[1])], [1, 1], activation=None, padding='same', use_bias=False)
+    X = keras.layers.BatchNormalization()(X)
+    X = _depth_conv2D(X, 4, [in_shape[0], 1], [1, 1], activation=None, padding='valid', use_bias=False,
+                      weight_constraint=weight_constraints_1)
+    X = keras.layers.BatchNormalization()(X)
+    X = keras.layers.ELU()(X)
+    X = keras.layers.AveragePooling2D(pool_size=(1, 2), strides=None, padding='valid')(X)
+    X = keras.layers.Dropout(rate=dropout_rate)(X)
+    ### Block 2 ###
+    X = _depth_conv2D(X, 1, [1, 4], [1, 1], activation=None, padding='same', use_bias=False,
+                      weight_constraint=weight_constraints_1)
+    X = _conv2D(X, 16, [1, 1], [1, 1], activation=None, padding='same', use_bias=False)
+    X = keras.layers.BatchNormalization()(X)
+    X = keras.layers.ELU()(X)
+    X = keras.layers.AveragePooling2D(pool_size=(1, 2), strides=None, padding='valid')(X)
+    X = keras.layers.Dropout(rate=2 * dropout_rate)(X)
+    ### Final ###
+    X = keras.layers.Flatten()(X)
+    X = keras.layers.Dense(out_shape, kernel_initializer=kernel_initializer, use_bias=False,
+                           kernel_constraint=weight_constraints_2,
+                           kernel_regularizer=None, activation='sigmoid')(X)
+    model = keras.models.Model(input, X, name="eegnet_1")
+    model.summary()
+    acc = tf.keras.metrics.AUC(num_thresholds=250, curve='ROC', summation_method='interpolation')
+    model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.0001),
                   # loss=keras.losses.MeanSquaredError(),
                   loss=keras.losses.BinaryCrossentropy(),
-                  metrics=keras.metrics.CategoricalAccuracy(),
-                  # metrics=acc,
-                  loss_weights=loss_weights,
-                  weighted_metrics=[])
+                  # loss=keras.losses.CategoricalCrossentropy(),
+                  # metrics=keras.metrics.CategoricalAccuracy(),
+                  metrics=acc)
     return model
+
+
+
+
 
 
 def _effnetV2(in_shape, out_shape, loss_weights=[0.5, 0.5]):
     kernel_initializer = tf.initializers.GlorotUniform()
     input = keras.layers.Input(shape=in_shape)
-    X = _conv2D(input, n_ch=64, k_size=(3, 3), strides=(1, 2), activation=None, padding='same', use_bias=False)
+    X = _conv2D(input, n_ch=64, k_size=(1, 3), strides=(1, 2), activation=None, padding='same', use_bias=False)
     X = keras.layers.BatchNormalization()(X)
     X = _mbconvFused(X, ch_out=64, kern=(1, 3), t=2, reduction=False, SE=0.25)
     X = _mbconvFused(X, ch_out=80, kern=(1, 3), t=2, reduction=True, SE=0.25)
@@ -227,19 +272,35 @@ def _confusion_matrix(Y_pred, Y_true):
     FN = 0
     P = 0
     N = 0
-    for i in range(np.shape(Y_pred)[0]):
-        if Y_true[i, 0] == 1:
-            P = P + 1
-            if Y_pred[i, 0] > Y_pred[i, 1]:
-                TP = TP + 1
+    threshold = 0.3
+    if len(Y_pred[0]) > 1:
+        for i in range(np.shape(Y_pred)[0]):
+            if Y_true[i, 0] == 1:
+                P = P + 1
+                if Y_pred[i, 0] > Y_pred[i, 1]:
+                    TP = TP + 1
+                else:
+                    FN = FN + 1
             else:
-                FN = FN + 1
-        else:
-            N = N + 1
-            if Y_pred[i, 0] < Y_pred[i, 1]:
-                TN = TN + 1
+                N = N + 1
+                if Y_pred[i, 0] < Y_pred[i, 1]:
+                    TN = TN + 1
+                else:
+                    FP = FP + 1
+    else:
+        for i in range(len(Y_pred)):
+            if Y_true[i] == 1:
+                P = P + 1
+                if Y_pred[i] > threshold:
+                    TP = TP + 1
+                else:
+                    FN = FN + 1
             else:
-                FP = FP + 1
+                N = N + 1
+                if Y_pred[i] < threshold:
+                    TN = TN + 1
+                else:
+                    FP = FP + 1
     out = {
         'matrix': np.array([[TP/P, FN/P], [FP/N, TN/N]]),
         'TP': TP/P,
