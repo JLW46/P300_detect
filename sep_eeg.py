@@ -1,3 +1,4 @@
+import json
 import numpy as np
 import os
 import scipy
@@ -103,19 +104,101 @@ import util_tf
 #     'P09_06_raw.set',
 # ]
 
+# TRAIN = [
+#     '04_01.set',
+#     '04_02.set',
+#     '04_03.set',
+#     '04_04.set',
+#     '04_05.set',
+#     # '04_06.set',
+# ]
+# TEST = [
+#     '04_06.set',
+# ]
+
 TRAIN = [
-    '04_01.set',
-    '04_02.set',
-    '04_03.set',
-    '04_04.set',
-    # '04_05.set',
-    '04_06.set',
+    '01_01.set',
+    '01_02.set',
+    '01_03.set',
+    '01_04.set',
+    '01_05.set',
+    # '01_06.set',
 ]
 TEST = [
-    '04_05.set',
+    '01_06.set',
 ]
 
+# TRAIN = [
+#     '02_01.set',
+#     '02_02.set',
+#     '02_03.set',
+#     '02_04.set',
+#     '02_05.set',
+#     # '02_06.set',
+# ]
+# TEST = [
+#     '02_06.set',
+# ]
 
+# TRAIN = [
+#     '03_01.set',
+#     '03_02.set',
+#     '03_03.set',
+#     '03_04.set',
+#     '03_05.set',
+#     # '03_06.set',
+# ]
+# TEST = [
+#     '03_06.set',
+# ]
+
+# TRAIN = [
+#     '06_01.set',
+#     '06_02.set',
+#     '06_03.set',
+#     '06_04.set',
+#     '06_05.set',
+#     # '06_06.set',
+# ]
+# TEST = [
+#     '06_06.set',
+# ]
+
+# TRAIN = [
+#     '07_01.set',
+#     '07_02.set',
+#     '07_03.set',
+#     '07_04.set',
+#     '07_05.set',
+#     # '07_06.set',
+# ]
+# TEST = [
+#     '07_06.set',
+# ]
+
+# TRAIN = [
+#     '08_01.set',
+#     '08_02.set',
+#     '08_03.set',
+#     '08_04.set',
+#     '08_05.set',
+#     # '08_06.set',
+# ]
+# TEST = [
+#     '08_06.set',
+# ]
+
+# TRAIN = [
+#     # '09_01.set',
+#     '09_02.set',
+#     '09_03.set',
+#     '09_04.set',
+#     '09_05.set',
+#     '09_06.set',
+# ]
+# TEST = [
+#     '09_01.set',
+# ]
 
 # CLASS = {
 #         '4': [0, 1], # nt estim
@@ -136,7 +219,7 @@ CLASS = {
     }
 
 # FOLDER = r'D:/Code/PycharmProjects/P300_detect/data/SEP BCI'
-FOLDER = r'D:/Code/PycharmProjects/P300_detect/data/SEP BCI processed'
+FOLDER = r'D:/Code/PycharmProjects/P300_detect/data/SEP BCI 125 0-20 no ICA'
 # FOLDER = r'D:\Code\MATLAB\eeglab2022.1'
 
 # X_plot, Y_plot, events_plot = util_preprocessing._build_dataset_eeglab_plot(FOLDER, TRAIN, TEST, CLASS)
@@ -146,9 +229,8 @@ X_train, Y_train, X_test, Y_test, class_weights, events_train, \
 sample_weights_train, sample_weights_test = util_preprocessing._build_dataset_eeglab(FOLDER=FOLDER, CLASS=CLASS,
                                                                                           TRAIN=TRAIN, TEST=TEST,
                                                                                           ch_last=False,
-                                                                                          trainset_ave=1,
-                                                                                          trainset_copy=False,
-                                                                                          testset_ave=1,
+                                                                                          trainset_ave=2,
+                                                                                          testset_ave=2,
                                                                                           for_plot=False)
 
 # X_train, Y_train, X_test, Y_test, events_train = util_preprocessing._build_dataset_eeglab(FOLDER=FOLDER, CLASS=CLASS,
@@ -255,15 +337,20 @@ print(class_weights)
 #     0: class_weights[0],
 #     1: class_weights[1]
 # }
-max_iter = 250
+max_iter = 200
 acc_old = 0
 record_iter = []
 record_loss_train = []
 record_loss_test = []
-record_loss_train_2 = []
-record_loss_test_2 = []
-record_loss_train_3 = []
-record_loss_test_3 = []
+record_acc_train = []
+record_acc_test = []
+record_P_val = []
+record_N_val = []
+
+# record_loss_train_2 = []
+# record_loss_test_2 = []
+# record_loss_train_3 = []
+# record_loss_test_3 = []
 converge_threshold = 0.0001
 best_loss = 1
 best_acc = 0
@@ -273,18 +360,25 @@ for i in range(max_iter):
     model.save_weights('Temp_saved_weights')
     hist = model.fit(x=X_train, y=Y_train, epochs=1, batch_size=16)
     loss_train = hist.history['loss'][-1]
+    acc_train = hist.history['auc'][-1]
     pred = model.evaluate(x=X_test, y=Y_test)
     loss_test = pred[0]
     acc_test = pred[1]
     record_loss_train.append(loss_train)
     record_loss_test.append(loss_test)
+    record_acc_train.append(acc_train)
+    record_acc_test.append(acc_test)
     Y_pred = model.predict(x=X_test)
-    results = util_tf._confusion_matrix(Y_pred, Y_test)
+    results, P_val, N_val = util_tf._confusion_matrix(Y_pred, Y_test)
+    record_P_val.append(P_val)
+    record_N_val.append(N_val)
     if loss_test < best_loss:
         best_loss = loss_test
         # best_acc = [results['matrix'][0, 0], results['matrix'][1, 1]]
     if acc_test > best_acc:
+        model.save('results_noICA_epoch_3/' + TEST[0] + '_iter_' + str(i))
         best_acc = acc_test
+        print('model saved ' + TEST[0])
     # pred_2 = model.evaluate(x=X_test_2, y=Y_test_2, sample_weight=sample_weights_test_2)
     # loss_test_2 = pred_2[0]
     # record_loss_test_2.append(loss_test_2)
@@ -315,6 +409,19 @@ for i in range(max_iter):
     # else:
     #     model.load_weights('Temp_saved_weights')
     #     print('weights discarded')
+dict_save = {
+    'best_test_acc': best_acc,
+    'iter': record_iter,
+    'train_loss': record_loss_train,
+    'train_acc': record_acc_train,
+    'test_loss': record_loss_test,
+    'test_acc': record_acc_test,
+    'test_P_val': record_P_val,
+    'test_N_val': record_N_val
+}
+with open('results_noICA_epoch_3' + TEST[0] + '.json', "w") as json_file:
+    json.dump(dict_save, json_file)
+
 print('best: ')
 print(best_loss)
 print(best_acc)

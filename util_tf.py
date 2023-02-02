@@ -208,7 +208,7 @@ def _eegnet_1(in_shape, out_shape, dropout_rate=0.2):
     X = keras.layers.BatchNormalization()(X)
     X = keras.layers.ELU()(X)
     X = keras.layers.AveragePooling2D(pool_size=(1, 2), strides=None, padding='valid')(X)
-    X = keras.layers.Dropout(rate=dropout_rate)(X)
+    X = keras.layers.Dropout(rate=2 * dropout_rate)(X)
     ### Block 2 ###
     X = _depth_conv2D(X, 1, [1, 4], [1, 1], activation=None, padding='same', use_bias=False,
                       weight_constraint=weight_constraints_1)
@@ -272,7 +272,9 @@ def _confusion_matrix(Y_pred, Y_true):
     FN = 0
     P = 0
     N = 0
-    threshold = 0.3
+    P_val = []
+    N_val = []
+    threshold = 0.05
     if len(Y_pred[0]) > 1:
         for i in range(np.shape(Y_pred)[0]):
             if Y_true[i, 0] == 1:
@@ -291,12 +293,14 @@ def _confusion_matrix(Y_pred, Y_true):
         for i in range(len(Y_pred)):
             if Y_true[i] == 1:
                 P = P + 1
+                P_val.append(float(Y_pred[i, 0]))
                 if Y_pred[i] > threshold:
                     TP = TP + 1
                 else:
                     FN = FN + 1
             else:
                 N = N + 1
+                N_val.append(float(Y_pred[i, 0]))
                 if Y_pred[i] < threshold:
                     TN = TN + 1
                 else:
@@ -308,7 +312,7 @@ def _confusion_matrix(Y_pred, Y_true):
         'TN': TN/N,
         'FP': FP/N
     }
-    return out
+    return out, P_val, N_val
 
 # test
 # model = _cecotti_cnn1([64, 192, 1], 2)

@@ -4,7 +4,7 @@ import os
 import mne
 import random
 import matplotlib.pyplot as plt
-
+import json
 
 P300_SPELLER = {
     'A'
@@ -202,7 +202,7 @@ def _P300_speller(char):
 
 
 def _build_dataset_eeglab(FOLDER, TRAIN, TEST, CLASS, ch_last=False,
-                          trainset_ave=False, trainset_copy=False, testset_ave=False, for_plot=False):
+                          trainset_ave=False, testset_ave=False, for_plot=False):
     files = os.listdir(FOLDER)
     X_train = None
     Y_train = None
@@ -215,8 +215,8 @@ def _build_dataset_eeglab(FOLDER, TRAIN, TEST, CLASS, ch_last=False,
         if file_name in TRAIN or file_name in TEST:
             PATH = os.path.join(FOLDER, file_name)
             # X, Y, events = _read_data_eeglab(PATH=PATH, CLASS=CLASS, ch_last=ch_last, norm=True, epochs=3, sampling='random')
-            if file_name in TRAIN and for_plot is False:
-                X, Y, events = _read_data_eeglab(PATH=PATH, CLASS=CLASS, ch_last=ch_last, norm=True, epochs=1,
+            if (file_name in TRAIN) and (file_name not in TEST) and (for_plot is False):
+                X, Y, events = _read_data_eeglab(PATH=PATH, CLASS=CLASS, ch_last=ch_last, norm=True, epochs=trainset_ave,
                                                  sampling='random')
                 # if trainset_ave is not False:
                 #     # X, Y = _random_average(X, Y, fold=trainset_ave)
@@ -234,7 +234,7 @@ def _build_dataset_eeglab(FOLDER, TRAIN, TEST, CLASS, ch_last=False,
                     Y_train = np.concatenate([Y_train, Y], axis=0)
                     events_train = np.concatenate([events_train, events])
             elif file_name in TEST and for_plot is False:
-                X, Y, events = _read_data_eeglab(PATH=PATH, CLASS=CLASS, ch_last=ch_last, norm=True, epochs=1,
+                X, Y, events = _read_data_eeglab(PATH=PATH, CLASS=CLASS, ch_last=ch_last, norm=True, epochs=testset_ave,
                                                  sampling='consecutive')
                 # if testset_ave is not False:
                 #     X, Y = _consec_average(X, Y, epochs=testset_ave)
@@ -352,6 +352,10 @@ def _read_data_eeglab(PATH, CLASS, ch_last=False, norm=True, epochs=1, sampling=
             else:
                 num_sampling = rep*len(ind)
             for i in range(num_sampling):
+                # for k in range(epochs):
+                #     picked_ind = random.sample(ind, k + 1)
+                #     X_ave.append(np.mean(X[picked_ind], axis=0))
+                #     Y_ave.append(CLASS[str(label)])
                 picked_ind = random.sample(ind, epochs)
                 X_ave.append(np.mean(X[picked_ind], axis=0))
                 Y_ave.append(CLASS[str(label)])
