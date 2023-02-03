@@ -72,12 +72,105 @@ import util_tf
 # ]
 
 TRAIN = [
+    '01_01.set',
+    '01_02.set',
+    '01_03.set',
+    '01_04.set',
+    '01_05.set',
+    '01_06.set',
+    '02_01.set',
+    '02_02.set',
+    '02_03.set',
+    '02_04.set',
+    '02_05.set',
+    '02_06.set',
+    '03_01.set',
+    '03_02.set',
+    '03_03.set',
+    '03_04.set',
+    '03_05.set',
+    '03_06.set',
+    '04_01.set',
+    '04_02.set',
+    '04_03.set',
+    '04_04.set',
+    '04_05.set',
+    '04_06.set',
+    '06_01.set',
+    '06_02.set',
+    '06_03.set',
+    '06_04.set',
+    '06_05.set',
+    '06_06.set',
+    '07_01.set',
+    '07_02.set',
+    '07_03.set',
+    '07_04.set',
+    '07_05.set',
+    '07_06.set',
+    '08_01.set',
+    '08_02.set',
+    '08_03.set',
+    '08_04.set',
+    '08_05.set',
+    '08_06.set',
     '09_01.set',
     '09_02.set',
     '09_03.set',
     '09_04.set',
     '09_05.set',
     '09_06.set',
+]
+
+TEST = [
+    # '01_01.set',
+    # '01_02.set',
+    # '01_03.set',
+    # '01_04.set',
+    # '01_05.set',
+    # '01_06.set',
+    # '02_01.set',
+    # '02_02.set',
+    # '02_03.set',
+    # '02_04.set',
+    # '02_05.set',
+    # '02_06.set',
+    # '03_01.set',
+    # '03_02.set',
+    # '03_03.set',
+    # '03_04.set',
+    # '03_05.set',
+    # '03_06.set',
+    '04_01.set',
+    '04_02.set',
+    '04_03.set',
+    '04_04.set',
+    '04_05.set',
+    '04_06.set',
+    # '06_01.set',
+    # '06_02.set',
+    # '06_03.set',
+    # '06_04.set',
+    # '06_05.set',
+    # '06_06.set',
+    # '07_01.set',
+    # '07_02.set',
+    # '07_03.set',
+    # '07_04.set',
+    # '07_05.set',
+    # '07_06.set',
+    # '08_01.set',
+    # '08_02.set',
+    # '08_03.set',
+    # '08_04.set',
+    # '08_05.set',
+    # '08_06.set',
+    # '09_01.set',
+    # '09_02.set',
+    # '09_03.set',
+    # '09_04.set',
+    # '09_05.set',
+    # '09_06.set',
 ]
 
 CLASS = {
@@ -90,10 +183,11 @@ CLASS = {
     }
 
 FOLDER = r'D:/Code/PycharmProjects/P300_detect/data/SEP BCI 125 0-20 no ICA'
-max_iter = 150
+max_iter = 200
 converge_threshold = 0.0001
-for item in TRAIN:
-    TEST = [item]
+# for item in TRAIN:
+if True:
+    # TEST = [item]
     X_train, Y_train, X_test, Y_test, class_weights, events_train, \
     sample_weights_train, sample_weights_test = util_preprocessing._build_dataset_eeglab(FOLDER=FOLDER, CLASS=CLASS,
                                                                                          TRAIN=TRAIN, TEST=TEST,
@@ -140,7 +234,7 @@ for item in TRAIN:
         if loss_test < best_loss:
             best_loss = loss_test
         if acc_test > best_acc:
-            model.save('results_noICA_epoch_3/' + TEST[0].split('.')[0] + '_iter_' + str(i))
+            model.save('results_noICA_crosssbj_epoch_1/' + TEST[0].split('.')[0] + '_iter_' + str(i))
             best_acc = acc_test
         print('Iter: ' + str(i) + '. TP: ' + str(results['matrix'][0, 0]) + '. TN: ' + str(results['matrix'][1, 1])
               + '. Test loss: ' + str(loss_test) + '. Test acc: ' + str(acc_test))
@@ -157,7 +251,7 @@ for item in TRAIN:
             'test_P_val': record_P_val,
             'test_N_val': record_N_val
         }
-    with open('results_noICA_epoch_3/' + TEST[0].split('.')[0] + '.json', "w") as json_file:
+    with open('results_noICA_crosssbj_epoch_1/' + TEST[0].split('.')[0] + '.json', "w") as json_file:
         json.dump(dict_save, json_file)
     print('best: ')
     print(best_loss)

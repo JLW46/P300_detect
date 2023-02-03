@@ -196,12 +196,12 @@ def _eegnet_1(in_shape, out_shape, dropout_rate=0.2):
     kernel_initializer = tf.initializers.GlorotUniform()
     input = keras.layers.Input(shape=in_shape)
     ### Block 1 ###
-    # X_1 = _conv2D(input, 8, [1, int(0.5*in_shape[1])], [1, 1], activation=None, padding='same', use_bias=False)
-    # X_2 = _conv2D(input, 8, [1, 15], [1, 1], activation=None, padding='same', use_bias=False)
-    # X_3 = _conv2D(input, 8, [1, 9], [1, 1], activation=None, padding='same', use_bias=False)
-    # X_4 = _conv2D(input, 8, [1, 5], [1, 1], activation=None, padding='same', use_bias=False)
-    # X = keras.layers.concatenate([X_1, X_2, X_3, X_4], axis=3)
-    X = _conv2D(input, 32, [1, int(0.5 * in_shape[1])], [1, 1], activation=None, padding='same', use_bias=False)
+    X_1 = _conv2D(input, 8, [1, int(0.5*in_shape[1])], [1, 1], activation=None, padding='same', use_bias=False)
+    X_2 = _conv2D(input, 8, [1, 15], [1, 1], activation=None, padding='same', use_bias=False)
+    X_3 = _conv2D(input, 8, [1, 9], [1, 1], activation=None, padding='same', use_bias=False)
+    X_4 = _conv2D(input, 8, [1, 5], [1, 1], activation=None, padding='same', use_bias=False)
+    X = keras.layers.concatenate([X_1, X_2, X_3, X_4], axis=3)
+    # X = _conv2D(input, 32, [1, int(0.5 * in_shape[1])], [1, 1], activation=None, padding='same', use_bias=False)
     X = keras.layers.BatchNormalization()(X)
     X = _depth_conv2D(X, 4, [in_shape[0], 1], [1, 1], activation=None, padding='valid', use_bias=False,
                       weight_constraint=weight_constraints_1)
@@ -225,7 +225,7 @@ def _eegnet_1(in_shape, out_shape, dropout_rate=0.2):
     model = keras.models.Model(input, X, name="eegnet_1")
     model.summary()
     acc = tf.keras.metrics.AUC(num_thresholds=250, curve='ROC', summation_method='interpolation')
-    model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.0001),
+    model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.001),
                   # loss=keras.losses.MeanSquaredError(),
                   loss=keras.losses.BinaryCrossentropy(),
                   # loss=keras.losses.CategoricalCrossentropy(),
