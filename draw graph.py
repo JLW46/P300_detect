@@ -8,7 +8,20 @@ import util_preprocessing
 FOLDER_1 = r'D:/Code/PycharmProjects/P300_detect/results_noICA_epoch_1'
 FOLDER_2 = r'D:/Code/PycharmProjects/P300_detect/results_noICA_epoch_2'
 FOLDER_3 = r'D:/Code/PycharmProjects/P300_detect/results_noICA_epoch_3'
+# FOLDER_1 = r'D:/Code/PycharmProjects/P300_detect/results_ICA_epoch_1'
+# FOLDER_2 = r'D:/Code/PycharmProjects/P300_detect/results_ICA_epoch_2'
+# FOLDER_3 = r'D:/Code/PycharmProjects/P300_detect/results_ICA_epoch_3'
+FOLDER_DATA = r'D:\Code\PycharmProjects\P300_detect\data\SEP BCI 125 0-20 no ICA'
+# FOLDER_DATA = r'D:\Code\PycharmProjects\P300_detect\data\SEP BCI 125 0-20 ICA'
 
+CLASS = {
+        '4': [0], # nt estim
+        '8': [1], # t estim
+        '16': [0], # nt astim
+        '32': [0], # t astim
+        '64': [0], # nt vstim
+        '128': [0] # t vstim
+    }
 def _read_auc(FOLDER):
     files = os.listdir(FOLDER)
     sbj_old = ''
@@ -58,39 +71,42 @@ def _plot_prediction(SBJ_PLOT):
     fig = plt.figure()
     for sbj_plot in SBJ_PLOT:
         data_to_box.append(result_pred_1[sbj_plot + 'N'])
-        label_to_box.append(str('N-T rep-1'))
+        label_to_box.append(str('1-N'))
         data_to_box.append(result_pred_1[sbj_plot + 'P'])
-        label_to_box.append(str('T rep-1'))
+        label_to_box.append(str('1-T'))
         data_to_box.append(result_pred_2[sbj_plot + 'N'])
-        label_to_box.append(str('N-T rep-2'))
+        label_to_box.append(str('2-N'))
         data_to_box.append(result_pred_2[sbj_plot + 'P'])
-        label_to_box.append(str('T rep-2'))
+        label_to_box.append(str('2-T'))
         data_to_box.append(result_pred_3[sbj_plot + 'N'])
-        label_to_box.append(str('N-T rep-3'))
+        label_to_box.append(str('3-N'))
         data_to_box.append(result_pred_3[sbj_plot + 'P'])
-        label_to_box.append(str('T rep-3'))
+        label_to_box.append(str('3-T'))
     x_spacing = [1, 2, 4, 5, 7, 8]
-    ax1 = fig.add_subplot(131)
+    ax1 = fig.add_subplot(121)
     ax1.set_title(str('Subject ' + SBJ_PLOT[0]))
     ax1.set_ylabel('Prediction')
+    ax1.set_xlabel('Repetition')
     box_dict_1 = ax1.boxplot(data_to_box[:6], labels=label_to_box[:6],
                              sym='+', positions=x_spacing, patch_artist=True, showmeans=True)
     ax1.yaxis.grid(True)
-    ax2 = fig.add_subplot(132)
+    ax2 = fig.add_subplot(122)
     ax2.set_title(str('Subject ' + SBJ_PLOT[1]))
     box_dict_2 = ax2.boxplot(data_to_box[6:12], labels=label_to_box[6:12],
                              sym='+', positions=x_spacing, patch_artist=True, showmeans=True)
     ax2.yaxis.grid(True)
-    ax3 = fig.add_subplot(133)
-    ax3.set_title(str('Subject ' + SBJ_PLOT[2]))
-    box_dict_3 = ax3.boxplot(data_to_box[12:], labels=label_to_box[12:],
-                             sym='+', positions=x_spacing, patch_artist=True, showmeans=True)
-    ax3.yaxis.grid(True)
+    ax2.set_xlabel('Repetition')
+    # ax3 = fig.add_subplot(133)
+    # ax3.set_title(str('Subject ' + SBJ_PLOT[2]))
+    # box_dict_3 = ax3.boxplot(data_to_box[12:], labels=label_to_box[12:],
+    #                          sym='+', positions=x_spacing, patch_artist=True, showmeans=True)
+    # ax3.yaxis.grid(True)
     COLOR = ['gold', 'mediumpurple', 'gold', 'mediumpurple', 'gold', 'mediumpurple']
     for i in range(6):
         box_dict_1.get('boxes')[i].set_facecolor(COLOR[i])
         box_dict_2.get('boxes')[i].set_facecolor(COLOR[i])
-        box_dict_3.get('boxes')[i].set_facecolor(COLOR[i])
+        # box_dict_3.get('boxes')[i].set_facecolor(COLOR[i])
+    # plt.legend(['Non-target', 'Target'])
     plt.show()
 
     return
@@ -104,17 +120,77 @@ def _epoch_plot(SBJ_PLOT):
         result_mean[sbj] = [np.mean(np.array(result_acc_1[sbj])),
                             np.mean(np.array(result_acc_2[sbj])),
                             np.mean(np.array(result_acc_3[sbj]))]
-        plt.plot(['rep-1', 'rep-2', 'rep-3'], result_mean[sbj], 'o--')
+        stds = [np.mean(np.std(result_acc_1[sbj])),
+                            np.std(np.array(result_acc_2[sbj])),
+                            np.std(np.array(result_acc_3[sbj]))]
+        print(result_mean[sbj])
+        print([stds])
+        print('  ')
+        plt.plot(['1', '2', '3'], result_mean[sbj], 'o-')
     for k in range(len(SBJ_PLOT)):
         SBJ_PLOT[k] = str('Subject ' + SBJ_PLOT[k])
-    plt.legend(SBJ_PLOT)
-    plt.xlabel('repetition')
-    plt.ylabel('accuracy (AUC)')
+    # plt.legend(SBJ_PLOT)
+    plt.legend(['SBJ01', 'SBJ02', 'SBJ03', 'SBJ04', 'SBJ05', 'SBJ06', 'SBJ07', 'SBJ08'])
+    plt.ylim([0.8, 1.0])
+    plt.xlabel('Number of Samples Averaged')
+    plt.ylabel('AUC')
     plt.grid(axis='y')
     plt.show()
     return
 
+def _signal_plot(SBJ_PLOT, CH=0):
+    files = os.listdir(FOLDER_DATA)
+    fig = plt.figure()
+    k = 1
+    time_axis = np.linspace(-0.2, 1.0, num=int(1.2*125), endpoint=False)
+    CLASS_NAME = {
+        '4': 'Electric-1',  # nt estim
+        '8': 'Electric-2-Target',  # t estim
+        '16': 'Audio-1',  # nt astim
+        '32': 'Audio-2',  # t astim
+        '64': 'Vibration-1',  # nt vstim
+        '128': 'Vibration-2'  # t vstim
+    }
+    CLASS_COLORS = {
+        '4': 'violet',  # nt estim
+        '8': 'purple',  # t estim
+        '16': 'yellow',  # nt astim
+        '32': 'gold',  # t astim
+        '64': 'peachpuff',  # nt vstim
+        '128': 'chocolate'  # t vstim
+    }
+    for sbj in SBJ_PLOT:
+        TRAIN = []
+        ax = fig.add_subplot(int('1' + str(len(SBJ_PLOT)) + str(k)))
+        k = k + 1
+        for file_name in files:
+            if (file_name.split('_')[0] == sbj) and (file_name.endswith('.set')):
+                TRAIN.append(file_name)
+        LEGENDS = []
+        # X_train, Y_train, _, _, _, events_train, _, _ = util_preprocessing._build_dataset_eeglab(
+        #     FOLDER=FOLDER_DATA, TRAIN=TRAIN, TEST=[], CLASS=CLASS,
+        #     ch_last=False, trainset_ave=1, testset_ave=1, for_plot=False)
+        X, Y, events = util_preprocessing._build_dataset_eeglab_plot(FOLDER=FOLDER_DATA, TRAIN=TRAIN, TEST=[], CLASS=CLASS)
+        for key in CLASS.keys():
+            signal_mean = np.mean(X[np.where(events == int(key))[0], :, :, :], axis=0)
+            if key == '8':
+                ax.plot(time_axis, signal_mean[CH, :], linewidth=5, color=CLASS_COLORS[key], zorder=1)
+            else:
+                ax.plot(time_axis, signal_mean[CH, :], linewidth=3, color=CLASS_COLORS[key])
+            ax.set_xlabel('Time/s')
+            ax.set_ylabel('Amplitude/muV')
+            LEGENDS.append(CLASS_NAME[key])
+        ax.axvline(x=0, color='black')
+        ax.axvline(x=0.2, color='grey', linestyle='--')
+        ax.axvline(x=0.8, color='grey', linestyle='--')
+        # ax.set_ylim([-10, 25])
+        ax.legend(LEGENDS, loc='lower right')
+        ax.grid(axis='y')
+        ax.set_title('Subject ' + str(sbj))
+    plt.show()
 
 
-# _epoch_plot(SBJ_PLOT=['01', '02', '03', '04', '06', '07', '08', '09'])
-_plot_prediction(SBJ_PLOT=['02', '01', '04'])
+_epoch_plot(SBJ_PLOT=['01', '02', '03', '04', '06', '07', '08', '09'])
+# _plot_prediction(SBJ_PLOT=['02', '04'])
+# _signal_plot(SBJ_PLOT=['01', '02', '03', '04', '06', '07', '08', '09'], CH=29)
+# _signal_plot(SBJ_PLOT=['01'], CH=29)
