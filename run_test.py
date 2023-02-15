@@ -5,6 +5,8 @@ import os
 import scipy
 import mne
 import matplotlib.pyplot as plt
+import sklearn.metrics
+
 import util_preprocessing
 import util_tf
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
@@ -14,6 +16,8 @@ from mne.channels import make_standard_montage
 from mne.io import concatenate_raws, read_raw_edf
 from mne.datasets import eegbci
 from mne.decoding import CSP
+
+from sklearn.metrics import plot_roc_curve
 
 # TRAIN = [
 #     '01_01.set',
@@ -138,72 +142,77 @@ TEST = [
 #     '01_05.set',
 #     '01_06.set',
     '02_01.set',
-#     # '02_02.set',
-#     # '02_03.set',
-#     # '02_04.set',
-#     # '02_05.set',
-#     # '02_06.set',
-#     # '03_01.set',
-#     # '03_02.set',
-#     # '03_03.set',
-#     # '03_04.set',
-#     # '03_05.set',
-#     # '03_06.set',
-#     # '04_01.set',
-#     # '04_02.set',
-#     # '04_03.set',
-#     # '04_04.set',
-#     # '04_05.set',
-#     # '04_06.set',
-#     # '06_01.set',
-#     # '06_02.set',
-#     # '06_03.set',
-#     # '06_04.set',
-#     # '06_05.set',
-#     # '06_06.set',
-#     # '07_01.set',
-#     # '07_02.set',
-#     # '07_03.set',
-#     # '07_04.set',
-#     # '07_05.set',
-#     # '07_06.set',
-#     # '08_01.set',
-#     # '08_02.set',
-#     # '08_03.set',
-#     # '08_04.set',
-#     # '08_05.set',
-#     # '08_06.set',
-#     # '09_01.set',
-#     # '09_02.set',
-#     # '09_03.set',
-#     # '09_04.set',
-#     # '09_05.set',
-#     # '09_06.set',
+    # '02_02.set',
+    # '02_03.set',
+    # '02_04.set',
+    # '02_05.set',
+    # '02_06.set',
+    # '03_01.set',
+    # '03_02.set',
+    # '03_03.set',
+    # '03_04.set',
+    # '03_05.set',
+    # '03_06.set',
+    # '04_01.set',
+    # '04_02.set',
+    # '04_03.set',
+    # '04_04.set',
+    # '04_05.set',
+    # '04_06.set',
+    # '06_01.set',
+    # '06_02.set',
+    # '06_03.set',
+    # '06_04.set',
+    # '06_05.set',
+    # '06_06.set',
+    # '07_01.set',
+    # '07_02.set',
+    # '07_03.set',
+    # '07_04.set',
+    # '07_05.set',
+    # '07_06.set',
+    # '08_01.set',
+    # '08_02.set',
+    # '08_03.set',
+    # '08_04.set',
+    # '08_05.set',
+    # '08_06.set',
+    # '09_01.set',
+    # '09_02.set',
+    # '09_03.set',
+    # '09_04.set',
+    # '09_05.set',
+    # '09_06.set',
 ]
 
-CLASS = {
-        '4': [0], # nt estim
-        '8': [1], # t estim
-        '16': [0], # nt astim
-        '32': [0], # t astim
-        '64': [0], # nt vstim
-        '128': [0] # t vstim
-    }
+
 
 FOLDER = r'D:/Code/PycharmProjects/P300_detect/data/SEP BCI 125 0-20 no ICA'
 # FOLDER = r'D:/Code/PycharmProjects/P300_detect/data/SEP BCI 125 0-20 ICA'
 def _run_cnn_test():
+    # out_len = 1, AUC
+    CLASS = {
+            '4': [0], # nt estim
+            '8': [1], # t estim
+            '16': [0], # nt astim
+            '32': [0], # t astim
+            '64': [0], # nt vstim
+            '128': [0] # t vstim
+        }
     max_iter = 20
     converge_threshold = 0.0001
     # for item in TRAIN:
     if True:
         # TEST = [item]
+        # X_train = [n_sample, eeg_ch, time_series, 1]
+        # X_train = [n_sample, 1, time_series, eeg_ch]
+        # Y_test = [n_sample, 1]
         X_train, Y_train, X_test, Y_test, class_weights, events_train, \
         sample_weights_train, sample_weights_test = util_preprocessing._build_dataset_eeglab(FOLDER=FOLDER, CLASS=CLASS,
                                                                                              TRAIN=TRAIN, TEST=TEST,
                                                                                              ch_last=False,
-                                                                                             trainset_ave=6,
-                                                                                             testset_ave=6)
+                                                                                             trainset_ave=1,
+                                                                                             testset_ave=1)
         print(np.shape(X_train))
         print(np.shape(Y_train))
         print(np.shape(X_test))
@@ -222,7 +231,7 @@ def _run_cnn_test():
         dict_save = {}
 
         keras.backend.clear_session()
-        model = util_tf._eegnet_1(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
+        model = util_tf._eegnet_2(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
         for i in range(max_iter):
             record_iter.append(i)
             hist = model.fit(x=X_train, y=Y_train, epochs=50, batch_size=32)
@@ -268,7 +277,64 @@ def _run_cnn_test():
 
     print('DONE!')
 
-def _run_csp_lda():
+def _run_cnn_test2():
+    # out_len = 2, CategoricalCrossEntropy
+    # CLASS = {
+    #     '4': [0, 1],  # nt estim
+    #     '8': [1, 0],  # t estim
+    #     '16': [0, 1],  # nt astim
+    #     '32': [0, 1],  # t astim
+    #     '64': [0, 1],  # nt vstim
+    #     '128': [0, 1]  # t vstim
+    # }
+    CLASS = {
+        '4': [0],  # nt estim
+        '8': [1],  # t estim
+        '16': [0],  # nt astim
+        '32': [0],  # t astim
+        '64': [0],  # nt vstim
+        '128': [0]  # t vstim
+    }
+    # for item in TRAIN:
+    if True:
+        # TEST = [item]
+        X_train, Y_train, X_test, Y_test, class_weights, events_train, \
+        sample_weights_train, sample_weights_test = util_preprocessing._build_dataset_eeglab(FOLDER=FOLDER, CLASS=CLASS,
+                                                                                             TRAIN=TRAIN, TEST=TEST,
+                                                                                             ch_last=False,
+                                                                                             trainset_ave=1,
+                                                                                             testset_ave=1)
+        print(np.shape(X_train))
+        print(np.shape(Y_train))
+        print(np.shape(X_test))
+        print(np.shape(Y_test))
+        print(np.sum(Y_train, axis=0))
+        print(np.sum(Y_test, axis=0))
+
+        keras.backend.clear_session()
+        callback_1 = util_tf.IterTracker(X_test=X_test, Y_test=Y_test)
+        model = util_tf._eegnet_2(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
+        model.fit(x=X_train, y=Y_train, epochs=200, batch_size=32, callbacks=[callback_1])
+        print('---------++++++++++++______________')
+        print(callback_1.best_scores)
+        print('DONE!')
+        SAVE_PATH = r'results_noICA_eegnet2_epoch_1/'
+        with open(SAVE_PATH + TEST[0].split('.')[0] + '.json', "w") as json_file:
+            json.dump(callback_1.best_scores, json_file)
+        model.set_weights(callback_1.best_weights)
+        model.save(SAVE_PATH + TEST[0].split('.')[0] + '_iter_' + str(callback_1.best_scores['epoch']))
+
+    return
+
+def _run_csp_lda(display=False):
+    CLASS = {
+        '4': [0],  # nt estim
+        '8': [1],  # t estim
+        '16': [0],  # nt astim
+        '32': [0],  # t astim
+        '64': [0],  # nt vstim
+        '128': [0]  # t vstim
+    }
     X_train, Y_train, X_test, Y_test, class_weights, events_train, \
     sample_weights_train, sample_weights_test = util_preprocessing._build_dataset_eeglab(FOLDER=FOLDER, CLASS=CLASS,
                                                                                          TRAIN=TRAIN, TEST=TEST,
@@ -289,18 +355,38 @@ def _run_csp_lda():
     print(np.shape(X_test))
     print(np.shape(Y_test))
     lda = LinearDiscriminantAnalysis()
-    csp = CSP(n_components=12, reg=None, log=True, norm_trace=False)
-
+    csp = CSP(n_components=32, reg=None, log=True, norm_trace=False)
     Feature_train = csp.fit_transform(X_train, Y_train)
-    # Feature_test = csp.transform(X_test)
-
     lda.fit(Feature_train, Y_train)
-
     Feature_test = csp.transform(X_test)
-    print(sample_weights_test)
-    print(lda.score(Feature_test, Y_test, sample_weight=sample_weights_test))
-    print(lda.predict(Feature_test))
-    print(Y_test)
+    # print(sample_weights_test)
+    # print(lda.score(Feature_test, Y_test, sample_weight=sample_weights_test))
+    proba = lda.predict_proba(Feature_test)
+    pred = np.zeros(np.shape(proba)[0])
+    pred[np.where(proba[:, 1] > 0.3)[0]] = 1
+    TN, FP, FN, TP = sklearn.metrics.confusion_matrix(y_true=Y_test, y_pred=pred).ravel()
+    if TP != 0:
+        precision = TP / (TP + FP)
+        recall = TP / (TP + FN)
+        f1 = 2 * (precision * recall) / (precision + recall)
+        new_acc_weighted = 0.5 * TP / (TP + FN) + 0.5 * TN / (TN + FP)
+        best_scores = {
+            'prec': precision,
+            'rcll': recall,
+            'f1': f1,
+            'acc': new_acc_weighted
+        }
+        print(best_scores)
+    if display is True:
+        # fpr, tpr, thresholds = sklearn.metrics.roc_curve(y_true=Y_test, y_score=proba[:, 1], sample_weight=sample_weights_test)
+        fpr, tpr, thresholds = sklearn.metrics.roc_curve(y_true=Y_test, y_score=proba[:, 1])
 
-_run_csp_lda()
+        roc_auc = sklearn.metrics.auc(fpr, tpr)
+        display = sklearn.metrics.RocCurveDisplay(fpr=fpr, tpr=tpr, roc_auc=roc_auc)
+        display.plot()
+        plt.show()
 
+    return
+
+# _run_csp_lda(display=True)
+_run_cnn_test2()

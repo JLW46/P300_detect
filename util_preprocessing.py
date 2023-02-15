@@ -350,10 +350,11 @@ def _read_data_eeglab(PATH, CLASS, ch_last=False, norm=True, epochs=1, sampling=
     Y_ave = []
     rep = 4
     for label in [4, 8, 16, 32, 64, 128]:
+
         ind = list(np.where(events == label)[0])
         if sampling == 'random':
             if label == 8:
-                num_sampling = 5*rep*len(ind)
+                num_sampling = 8*rep*len(ind)
             else:
                 num_sampling = rep*len(ind)
             for i in range(num_sampling):
