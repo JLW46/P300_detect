@@ -330,6 +330,10 @@ def _run_cnn_test2():
             print('DONE!')
             # SAVE_PATH = r'results_noICA_eegnet_epoch_3/'
             SAVE_PATH = r'results_noICA_effnetv2_epoch_1/'
+            if os.path.exists(SAVE_PATH):
+                pass
+            else:
+                os.makedirs(SAVE_PATH)
             FILE_NAME = SAVE_PATH + TEST[0].split('.')[0] + '.json'
             if os.path.isfile(FILE_NAME):
                 with open(FILE_NAME) as json_file:
