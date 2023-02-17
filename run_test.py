@@ -28,14 +28,14 @@ from sklearn.metrics import plot_roc_curve
 #     '01_06.set',
 # ]
 
-TRAIN = [
-    '02_01.set',
-    '02_02.set',
-    '02_03.set',
-    '02_04.set',
-    '02_05.set',
-    '02_06.set',
-]
+# TRAIN = [
+#     '02_01.set',
+#     '02_02.set',
+#     '02_03.set',
+#     '02_04.set',
+#     '02_05.set',
+#     '02_06.set',
+# ]
 
 # TRAIN = [
 #     '03_01.set',
@@ -64,14 +64,14 @@ TRAIN = [
 #     '06_06.set',
 # ]
 
-# TRAIN = [
-#     '07_01.set',
-#     '07_02.set',
-#     '07_03.set',
-#     '07_04.set',
-#     '07_05.set',
-#     '07_06.set',
-# ]
+TRAIN = [
+    '07_01.set',
+    '07_02.set',
+    '07_03.set',
+    '07_04.set',
+    '07_05.set',
+    '07_06.set',
+]
 
 # TRAIN = [
 #     '08_01.set',
@@ -80,6 +80,15 @@ TRAIN = [
 #     '08_04.set',
 #     '08_05.set',
 #     '08_06.set',
+# ]
+
+# TRAIN = [
+#     '09_01.set',
+#     '09_02.set',
+#     '09_03.set',
+#     '09_04.set',
+#     '09_05.set',
+#     '09_06.set',
 # ]
 
 
@@ -135,13 +144,13 @@ TRAIN = [
 # ]
 
 TEST = [
-#     '01_01.set',
+    # '01_01.set',
 #     '01_02.set',
 #     '01_03.set',
 #     '01_04.set',
 #     '01_05.set',
 #     '01_06.set',
-    '02_01.set',
+#     '02_01.set',
     # '02_02.set',
     # '02_03.set',
     # '02_04.set',
@@ -279,14 +288,6 @@ def _run_cnn_test():
 
 def _run_cnn_test2():
     # out_len = 2, CategoricalCrossEntropy
-    # CLASS = {
-    #     '4': [0, 1],  # nt estim
-    #     '8': [1, 0],  # t estim
-    #     '16': [0, 1],  # nt astim
-    #     '32': [0, 1],  # t astim
-    #     '64': [0, 1],  # nt vstim
-    #     '128': [0, 1]  # t vstim
-    # }
     CLASS = {
         '4': [0],  # nt estim
         '8': [1],  # t estim
@@ -295,34 +296,55 @@ def _run_cnn_test2():
         '64': [0],  # nt vstim
         '128': [0]  # t vstim
     }
-    # for item in TRAIN:
-    if True:
-        # TEST = [item]
-        X_train, Y_train, X_test, Y_test, class_weights, events_train, \
-        sample_weights_train, sample_weights_test = util_preprocessing._build_dataset_eeglab(FOLDER=FOLDER, CLASS=CLASS,
-                                                                                             TRAIN=TRAIN, TEST=TEST,
-                                                                                             ch_last=False,
-                                                                                             trainset_ave=1,
-                                                                                             testset_ave=1)
-        print(np.shape(X_train))
-        print(np.shape(Y_train))
-        print(np.shape(X_test))
-        print(np.shape(Y_test))
-        print(np.sum(Y_train, axis=0))
-        print(np.sum(Y_test, axis=0))
+    for sbj in ['01', '02', '03', '04', '06', '07', '08', '09']:
+    # for sbj in ['08', '09']:
+        # create TRAIN
+        TRAIN = []
+        for set in ['_01', '_02', '_03', '_04', '_05', '_06']:
+            TRAIN.append(sbj + set + '.set')
+        # run
+        for item in TRAIN:
+        # if True:
+            TEST = [item]
+            X_train, Y_train, X_test, Y_test, class_weights, events_train, \
+            sample_weights_train, sample_weights_test = util_preprocessing._build_dataset_eeglab(FOLDER=FOLDER, CLASS=CLASS,
+                                                                                                 TRAIN=TRAIN, TEST=TEST,
+                                                                                                 ch_last=True,
+                                                                                                 trainset_ave=1,
+                                                                                                 testset_ave=1)
+            print(np.shape(X_train))
+            print(np.shape(Y_train))
+            print(np.shape(X_test))
+            print(np.shape(Y_test))
+            print(np.sum(Y_train, axis=0))
+            print(np.sum(Y_test, axis=0))
 
-        keras.backend.clear_session()
-        callback_1 = util_tf.IterTracker(X_test=X_test, Y_test=Y_test)
-        model = util_tf._eegnet_2(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
-        model.fit(x=X_train, y=Y_train, epochs=200, batch_size=32, callbacks=[callback_1])
-        print('---------++++++++++++______________')
-        print(callback_1.best_scores)
-        print('DONE!')
-        SAVE_PATH = r'results_noICA_eegnet2_epoch_1/'
-        with open(SAVE_PATH + TEST[0].split('.')[0] + '.json', "w") as json_file:
-            json.dump(callback_1.best_scores, json_file)
-        model.set_weights(callback_1.best_weights)
-        model.save(SAVE_PATH + TEST[0].split('.')[0] + '_iter_' + str(callback_1.best_scores['epoch']))
+            keras.backend.clear_session()
+            callback_1 = util_tf.IterTracker(X_test=X_test, Y_test=Y_test)
+            # model = util_tf._eegnet(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
+            # model = util_tf._eegnet_2(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
+            model = util_tf._effnetV2(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
+            model.fit(x=X_train, y=Y_train, epochs=200, batch_size=32, callbacks=[callback_1])
+            print('---------++++++++++++______________')
+            print(callback_1.best_scores)
+            print('DONE!')
+            # SAVE_PATH = r'results_noICA_eegnet_epoch_3/'
+            SAVE_PATH = r'results_noICA_effnetv2_epoch_1/'
+            FILE_NAME = SAVE_PATH + TEST[0].split('.')[0] + '.json'
+            if os.path.isfile(FILE_NAME):
+                with open(FILE_NAME) as json_file:
+                    data = json.load(json_file)
+                    old_auc = data['auc']
+                if callback_1.best_scores['auc'] > old_auc:
+                    with open(FILE_NAME, "w") as json_file:
+                        json.dump(callback_1.best_scores, json_file)
+                    model.set_weights(callback_1.best_weights)
+                    model.save(SAVE_PATH + TEST[0].split('.')[0] + '_iter_' + str(callback_1.best_scores['epoch']))
+            else:
+                with open(FILE_NAME, "w") as json_file:
+                    json.dump(callback_1.best_scores, json_file)
+                model.set_weights(callback_1.best_weights)
+                model.save(SAVE_PATH + TEST[0].split('.')[0] + '_iter_' + str(callback_1.best_scores['epoch']))
 
     return
 
