@@ -34,9 +34,9 @@ def _read_auc(FOLDER):
             trial = file_name.split('_')[1].split('.')[0]
             if sbj != sbj_old:
                 sbj_old = sbj
-                result_acc[sbj] = [data['best_test_acc']]
+                result_acc[sbj] = [data['auc']]
             else:
-                result_acc[sbj].append(data['best_test_acc'])
+                result_acc[sbj].append(data['auc'])
     return result_acc
 
 def _read_prediction(FOLDER, SBJ_PLOT):
@@ -138,6 +138,168 @@ def _epoch_plot(SBJ_PLOT):
     plt.show()
     return
 
+
+def _epoch_plot_methods(SBJ_PLOT):
+    fig = plt.figure(1)
+    result_mean_all_subs = {}
+    y_lim = [0.5, 1.0]
+
+
+    ax0 = fig.add_subplot(151)
+    ax0.set_title('CSP-LDA')
+    ax0.set_ylabel('AUC')
+    ax0.set_xlabel('Repetition')
+    ax0.set_ylim(y_lim)
+    ax0.yaxis.grid(True)
+    # result_acc_1 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_epoch_1')
+    # result_acc_2 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_epoch_2')
+    # result_acc_3 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_epoch_3')
+    # result_acc_4 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_epoch_4')
+    # result_acc_5 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_epoch_5')
+    # result_acc_6 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_epoch_6')
+    result_acc_1 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_8ch_epoch_1')
+    result_acc_2 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_8ch_epoch_2')
+    result_acc_3 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_8ch_epoch_3')
+    result_acc_4 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_8ch_epoch_4')
+    result_acc_5 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_8ch_epoch_5')
+    result_acc_6 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_8ch_epoch_6')
+    result_mean = {}
+    result_mean_all_subs['csplda'] = np.zeros(6)
+    for sbj in SBJ_PLOT:
+        result_mean[sbj] = [np.mean(np.array(result_acc_1[sbj])),
+                            np.mean(np.array(result_acc_2[sbj])),
+                            np.mean(np.array(result_acc_3[sbj])),
+                            np.mean(np.array(result_acc_4[sbj])),
+                            np.mean(np.array(result_acc_5[sbj])),
+                            np.mean(np.array(result_acc_6[sbj]))]
+        result_mean_all_subs['csplda'] = result_mean_all_subs['csplda'] + np.squeeze(np.array(result_mean[sbj]))
+        stds = [np.mean(np.std(result_acc_1[sbj])),
+                np.std(np.array(result_acc_2[sbj])),
+                np.std(np.array(result_acc_3[sbj]))]
+        print(result_mean[sbj])
+        print([stds])
+        print('  ')
+        ax0.plot(['1', '2', '3', '4', '5', '6'], result_mean[sbj], 'o-')
+    result_mean_all_subs['csplda'] = result_mean_all_subs['csplda'] / 8
+    ax0.legend(['SBJ01', 'SBJ02', 'SBJ03', 'SBJ04', 'SBJ05', 'SBJ06', 'SBJ07', 'SBJ08'])
+
+    ax1 = fig.add_subplot(152)
+    ax1.set_title('EEGNET')
+    ax1.set_ylabel('AUC')
+    ax1.set_xlabel('Repetition')
+    ax1.set_ylim(y_lim)
+    ax1.yaxis.grid(True)
+    result_acc_1 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_epoch_1')
+    result_acc_2 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_epoch_2')
+    result_acc_3 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_epoch_3')
+    result_acc_4 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_epoch_4')
+    result_acc_5 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_epoch_5')
+    result_acc_6 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_epoch_6')
+    result_mean = {}
+    result_mean_all_subs['eegnet'] = np.zeros(6)
+    for sbj in SBJ_PLOT:
+        result_mean[sbj] = [np.mean(np.array(result_acc_1[sbj])),
+                            np.mean(np.array(result_acc_2[sbj])),
+                            np.mean(np.array(result_acc_3[sbj])),
+                            np.mean(np.array(result_acc_4[sbj])),
+                            np.mean(np.array(result_acc_5[sbj])),
+                            np.mean(np.array(result_acc_6[sbj]))
+                            ]
+        result_mean_all_subs['eegnet'] = result_mean_all_subs['eegnet'] + np.squeeze(np.array(result_mean[sbj]))
+        stds = [np.mean(np.std(result_acc_1[sbj])),
+                np.std(np.array(result_acc_2[sbj])),
+                np.std(np.array(result_acc_3[sbj]))]
+        print(result_mean[sbj])
+        print([stds])
+        print('  ')
+        ax1.plot(['1', '2', '3', '4', '5', '6'], result_mean[sbj], 'o-')
+    result_mean_all_subs['eegnet'] = result_mean_all_subs['eegnet'] / 8
+    ax1.legend(['SBJ01', 'SBJ02', 'SBJ03', 'SBJ04', 'SBJ05', 'SBJ06', 'SBJ07', 'SBJ08'])
+
+    ax2 = fig.add_subplot(153)
+    ax2.set_title('EFFNET_V2')
+    ax2.set_ylabel('AUC')
+    ax2.set_xlabel('Repetition')
+    ax2.set_ylim(y_lim)
+    ax2.yaxis.grid(True)
+    result_acc_1 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_epoch_1')
+    result_acc_2 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_epoch_2')
+    result_acc_3 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_epoch_3')
+    result_acc_4 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_epoch_4')
+    result_acc_5 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_epoch_5')
+    result_acc_6 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_epoch_6')
+    result_mean = {}
+    result_mean_all_subs['effnetv2'] = np.zeros(6)
+    for sbj in SBJ_PLOT:
+        result_mean[sbj] = [np.mean(np.array(result_acc_1[sbj])),
+                            np.mean(np.array(result_acc_2[sbj])),
+                            np.mean(np.array(result_acc_3[sbj])),
+                            np.mean(np.array(result_acc_4[sbj])),
+                            np.mean(np.array(result_acc_5[sbj])),
+                            np.mean(np.array(result_acc_6[sbj]))
+                            ]
+        result_mean_all_subs['effnetv2'] = result_mean_all_subs['effnetv2'] + np.squeeze(np.array(result_mean[sbj]))
+        stds = [np.mean(np.std(result_acc_1[sbj])),
+                np.std(np.array(result_acc_2[sbj])),
+                np.std(np.array(result_acc_3[sbj]))]
+        print(result_mean[sbj])
+        print([stds])
+        print('  ')
+        ax2.plot(['1', '2', '3', '4', '5', '6'], result_mean[sbj], 'o-')
+    result_mean_all_subs['effnetv2'] = result_mean_all_subs['effnetv2'] / 8
+    ax2.legend(['SBJ01', 'SBJ02', 'SBJ03', 'SBJ04', 'SBJ05', 'SBJ06', 'SBJ07', 'SBJ08'])
+
+    ax3 = fig.add_subplot(154)
+    ax3.set_title('CUSTOM')
+    ax3.set_ylabel('AUC')
+    ax3.set_xlabel('Repetition')
+    ax3.set_ylim(y_lim)
+    ax3.yaxis.grid(True)
+    result_acc_1 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet2_epoch_1')
+    result_acc_2 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet2_epoch_2')
+    result_acc_3 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet2_epoch_3')
+    result_acc_4 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet2_epoch_4')
+    result_acc_5 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet2_epoch_5')
+    result_acc_6 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet2_epoch_6')
+    result_mean = {}
+    result_mean_all_subs['custom'] = np.zeros(6)
+    for sbj in SBJ_PLOT:
+        result_mean[sbj] = [np.mean(np.array(result_acc_1[sbj])),
+                            np.mean(np.array(result_acc_2[sbj])),
+                            np.mean(np.array(result_acc_3[sbj])),
+                            np.mean(np.array(result_acc_4[sbj])),
+                            np.mean(np.array(result_acc_5[sbj])),
+                            np.mean(np.array(result_acc_6[sbj]))
+                            ]
+        result_mean_all_subs['custom'] = result_mean_all_subs['custom'] + np.squeeze(np.array(result_mean[sbj]))
+        stds = [np.mean(np.std(result_acc_1[sbj])),
+                np.std(np.array(result_acc_2[sbj])),
+                np.std(np.array(result_acc_3[sbj]))]
+        print(result_mean[sbj])
+        print([stds])
+        print('  ')
+        ax3.plot(['1', '2', '3', '4', '5', '6'], result_mean[sbj], 'o-')
+    result_mean_all_subs['custom'] = result_mean_all_subs['custom']/8
+    ax3.legend(['SBJ01', 'SBJ02', 'SBJ03', 'SBJ04', 'SBJ05', 'SBJ06', 'SBJ07', 'SBJ08'])
+
+    ax = fig.add_subplot(155)
+    ax.plot(['1', '2', '3', '4', '5', '6'], result_mean_all_subs['csplda'], 'o-')
+    ax.plot(['1', '2', '3', '4', '5', '6'], result_mean_all_subs['eegnet'], 'o-')
+    ax.plot(['1', '2', '3', '4', '5', '6'], result_mean_all_subs['effnetv2'], 'o-')
+    ax.plot(['1', '2', '3', '4', '5', '6'], result_mean_all_subs['custom'], 'o-')
+    ax.legend(['CSP-LDA', 'EEGNET', 'EFFNETv2', 'CUSTOM'])
+    ax.set_ylabel('AUC')
+    ax.set_xlabel('Repetition')
+    ax.set_ylim(y_lim)
+    ax.yaxis.grid(True)
+    # plt.ylim([0.8, 1.0])
+    # plt.xlabel('Number of Samples Averaged')
+    # plt.ylabel('AUC')
+    # plt.grid(axis='y')
+    plt.show()
+    return
+
+
 def _signal_plot(SBJ_PLOT, CH=0):
     files = os.listdir(FOLDER_DATA)
     fig = plt.figure()
@@ -190,7 +352,8 @@ def _signal_plot(SBJ_PLOT, CH=0):
     plt.show()
 
 
-_epoch_plot(SBJ_PLOT=['01', '02', '03', '04', '06', '07', '08', '09'])
+# _epoch_plot(SBJ_PLOT=['01', '02', '03', '04', '06', '07', '08', '09'])
+_epoch_plot_methods(SBJ_PLOT=['01', '02', '03', '04', '06', '07', '08', '09'])
 # _plot_prediction(SBJ_PLOT=['02', '04'])
 # _signal_plot(SBJ_PLOT=['01', '02', '03', '04', '06', '07', '08', '09'], CH=29)
 # _signal_plot(SBJ_PLOT=['01'], CH=29)
