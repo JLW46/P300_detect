@@ -17,8 +17,6 @@ from mne.io import concatenate_raws, read_raw_edf
 from mne.datasets import eegbci
 from mne.decoding import CSP
 
-from sklearn.metrics import plot_roc_curve
-
 # TRAIN = [
 #     '01_01.set',
 #     '01_02.set',
