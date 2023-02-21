@@ -243,7 +243,7 @@ def _build_dataset_eeglab(FOLDER, TRAIN, TEST, CLASS, ch_last=False,
     class_weights_test = []
     sample_weights_train = []
     sample_weights_test = []
-    if len(summation) > 1:
+    if len(np.shape(summation)) > 1:
         for i in range(len(summation)):
             w_inv = 0
             for j in range(len(summation)):
@@ -356,7 +356,6 @@ def _read_data_eeglab(PATH, CLASS, ch_last=False, norm=True, epochs=1, sampling=
     Y_ave = []
     rep = 4
     for label in [4, 8, 16, 32, 64, 128]:
-
         ind = list(np.where(events == label)[0])
         if sampling == 'random':
             if label == 8:
@@ -380,9 +379,32 @@ def _read_data_eeglab(PATH, CLASS, ch_last=False, norm=True, epochs=1, sampling=
                     X_ave.append(np.mean(X[ind[i:i + epochs]], axis=0))
                 Y_ave.append(CLASS[str(label)])
                 events_new.append(label)
-    X = np.array(X_ave)
-    Y = np.array(Y_ave)
-    return X, Y, np.array(events_new)
+            # X_ave = np.squeeze(np.array(X_ave))
+            # Y_ave = np.squeeze(np.array(Y_ave))
+            # if len(np.shape(Y_ave)) > 1:
+            #     pos_ind = np.where(Y_ave[:, 1] == 1)[0]
+            # else:
+            #     pos_ind = np.where(Y_ave == 1)[0]
+            # scale = int((np.shape(Y_ave)[0] - len(pos_ind))/len(pos_ind))
+            # if scale > 0:
+            #     for i in range(scale):
+            #         X_ave = np.concatenate([X_ave, X_ave[pos_ind]])
+            #         Y_ave = np.concatenate([Y_ave, Y_ave[pos_ind]])
+    # X = np.array(X_ave)
+    # Y = np.array(Y_ave)
+    X_ave = np.array(X_ave)
+    Y_ave = np.array(Y_ave)
+    if np.shape(Y_ave)[1] > 1:
+        pos_ind = np.where(Y_ave[:, 1] == 1)[0]
+    else:
+        pos_ind = np.where(Y_ave == 1)[0]
+    scale = int((np.shape(Y_ave)[0] - len(pos_ind)) / len(pos_ind)) - 1
+    if scale > 0:
+        for i in range(scale):
+            X_ave = np.concatenate([X_ave, X_ave[pos_ind]])
+            Y_ave = np.concatenate([Y_ave, Y_ave[pos_ind]])
+    print('total: ' + str(len(Y_ave)) + '. target: ' + str(np.sum(Y_ave)))
+    return X_ave, Y_ave, np.array(events_new)
 
 
 def _make_average(X, Y, CLASS, events, fold=1, epochs=1, consec=False):

@@ -15,6 +15,7 @@ class IterTracker(keras.callbacks.Callback):
         self.wait_rerun = 0
         self.best_scores = {
             'epoch': 0,
+            'loss': 10,
             'auc': 0,
             'Y_pred': 0,
             'Y_true': np.squeeze(self.Y_test).tolist()
@@ -22,20 +23,23 @@ class IterTracker(keras.callbacks.Callback):
 
     def on_epoch_end(self, epoch, logs=None):
         out = self.model.predict(x=self.X_test)
+        new_loss = self.model.evaluate(x=self.X_test, y=self.Y_test)[0]
         if self.Y_test.shape[-1] > 1:
             Y_pred = out[:, 1]
         else:
             Y_pred = out
         new_auc = sklearn.metrics.roc_auc_score(y_true=self.Y_test, y_score=Y_pred)
-        if new_auc > self.best_scores['auc']:
+        if new_loss < self.best_scores['loss']:
+        # if new_auc > self.best_scores['auc']:
             self.best_scores['Y_pred'] = np.squeeze(Y_pred).tolist()
             self.best_scores['epoch'] = epoch
             self.best_scores['auc'] = new_auc
+            self.best_scores['loss'] = new_loss
             self.best_weights = self.model.get_weights()
             self.wait_reset = 0
         else:
             self.wait_reset = self.wait_reset + 1
-            if self.wait_reset > 9:
+            if self.wait_reset > 1:
                 self.model.set_weights(self.best_weights)
                 self.wait_reset = 0
                 self.wait_rerun = self.wait_rerun + 1
@@ -44,7 +48,8 @@ class IterTracker(keras.callbacks.Callback):
                     self.wait_rerun = 0
                     self.model.stop_training = True
                     print('Not improving, terminate!!')
-        print('Best AUC: ' + str(self.best_scores['auc']))
+        print('Test loss: ' + str(new_loss))
+        print('Best loss: ' + str(self.best_scores['loss']) + ' Best AUC: ' + str(self.best_scores['auc']))
 
 
 
@@ -285,16 +290,16 @@ def _eegnet_1(in_shape, out_shape, dropout_rate=0.2):
     return model
 
 
-def _eegnet_2(in_shape, out_shape, dropout_rate=0.2):
+def _custom(in_shape, out_shape, dropout_rate=0.2):
     weight_constraints_1 = keras.constraints.MinMaxNorm(min_value=-1.0, max_value=1.0, rate=1.0, axis=0)
     weight_constraints_2 = keras.constraints.MinMaxNorm(min_value=-1.0, max_value=1.0, rate=1.0, axis=0)
     kernel_initializer = tf.initializers.GlorotUniform()
     input = keras.layers.Input(shape=in_shape)
     ### Block 1 ###
-    X_1_1 = _conv2D(input, 4, [1, 50], [1, 1], activation=None, padding='same', use_bias=False)
-    X_1_2 = _conv2D(input, 4, [1, 25], [1, 1], activation=None, padding='same', use_bias=False)
-    X_1_3 = _conv2D(input, 4, [1, 10], [1, 1], activation=None, padding='same', use_bias=False)
-    X_1_4 = _conv2D(input, 4, [1, 5], [1, 1], activation=None, padding='same', use_bias=False)
+    X_1_1 = _conv2D(input, 4, [1, 50], [1, 1], activation='relu', padding='same', use_bias=False)
+    X_1_2 = _conv2D(input, 4, [1, 25], [1, 1], activation='relu', padding='same', use_bias=False)
+    X_1_3 = _conv2D(input, 4, [1, 10], [1, 1], activation='relu', padding='same', use_bias=False)
+    X_1_4 = _conv2D(input, 4, [1, 5], [1, 1], activation='relu', padding='same', use_bias=False)
     X = keras.layers.concatenate([X_1_1, X_1_2, X_1_3, X_1_4], axis=3)
 
     # X = keras.layers.BatchNormalization()(X)
@@ -314,28 +319,28 @@ def _eegnet_2(in_shape, out_shape, dropout_rate=0.2):
     X = _depth_conv2D(X, 2, [in_shape[0], 1], [1, 1], activation=None, padding='valid', use_bias=False,
                       weight_constraint=weight_constraints_1)
     X = keras.layers.BatchNormalization()(X)
-    X = keras.layers.ELU()(X)
+    X = keras.layers.ReLU()(X)
     X = keras.layers.AveragePooling2D(pool_size=(1, 2), strides=None, padding='valid')(X)
-    X = keras.layers.Dropout(rate=0.2)(X)
+    X = keras.layers.Dropout(rate=0.25)(X)
     ### Block 2 ###
-    X = _mbconv(X, ch_out=64, kern=(1, 3), t=0.5, reduction=False, SE=0.25, dropout=0.5)
-    X = _mbconv(X, ch_out=64, kern=(1, 3), t=0.5, reduction=True, SE=0.25, dropout=0.5)
-    X = _mbconv(X, ch_out=64, kern=(1, 3), t=0.5, reduction=False, SE=0.25, dropout=0.5)
-
-    # X = _depth_conv2D(X, 1, [1, 4], [1, 1], activation=None, padding='same', use_bias=False,
-    #                   weight_constraint=weight_constraints_1)
-    X = _conv2D(X, 32, [1, X.shape[-2]], [1, 1], activation=None, padding='valid', use_bias=False)
+    X = _mbconv(X, ch_out=64, kern=(1, 3), t=0.5, reduction=False, SE=0.25, dropout=0.2)
+    X = _mbconv(X, ch_out=64, kern=(1, 3), t=0.5, reduction=True, SE=0.25, dropout=0.2)
+    X = _mbconv(X, ch_out=64, kern=(1, 3), t=0.5, reduction=False, SE=0.25, dropout=0.2)
+    X = _mbconv(X, ch_out=64, kern=(1, 3), t=0.5, reduction=True, SE=0.25, dropout=0.2)
+    X = _depth_conv2D(X, 1, [1, X.shape[-2]], [1, 1], activation=None, padding='same', use_bias=False,
+                      weight_constraint=weight_constraints_1)
+    # X = _conv2D(X, 32, [1, X.shape[-2]], [1, 1], activation=None, padding='valid', use_bias=False)
 
     # X = _conv2D(X, 8, [1, 1], [1, 1], activation=None, padding='same', use_bias=False)
     X = keras.layers.BatchNormalization()(X)
-    X = keras.layers.ELU()(X)
+    X = keras.layers.ReLU()(X)
     # X = keras.layers.AveragePooling2D(pool_size=(1, 2), strides=None, padding='valid')(X)
     # X = keras.layers.Dropout(rate=0.5)(X)
     # X = _depth_conv2D(X, 2, [in_shape[0], 1], [1, 1], activation=None, padding='valid', use_bias=False,
     #                   weight_constraint=weight_constraints_1)
     ### Final ###
     X = keras.layers.Flatten()(X)
-    X = keras.layers.Dropout(rate=0.4)(X)
+    X = keras.layers.Dropout(rate=0.5)(X)
     if out_shape > 1:
         activation = 'softmax'
         acc = tf.keras.metrics.CategoricalAccuracy()
@@ -345,9 +350,9 @@ def _eegnet_2(in_shape, out_shape, dropout_rate=0.2):
     X = keras.layers.Dense(out_shape, kernel_initializer=kernel_initializer, use_bias=False,
                            kernel_constraint=weight_constraints_2,
                            kernel_regularizer=None, activation=activation)(X)
-    model = keras.models.Model(input, X, name="eegnet_2")
+    model = keras.models.Model(input, X, name="custom")
     model.summary()
-    model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.001),
+    model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.0002),
                   # loss=keras.losses.MeanSquaredError(),
                   loss=keras.losses.BinaryCrossentropy(),
                   # loss=keras.losses.CategoricalCrossentropy(),

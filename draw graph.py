@@ -3,6 +3,9 @@ import os
 import json
 import matplotlib.pyplot as plt
 import util_preprocessing
+import csv
+import sklearn
+from sklearn.metrics import confusion_matrix
 
 
 FOLDER_1 = r'D:/Code/PycharmProjects/P300_detect/results_noICA_epoch_1'
@@ -39,6 +42,71 @@ def _read_auc(FOLDER):
                 result_acc[sbj].append(data['auc'])
     return result_acc
 
+
+def _read_acc(FOLDER):
+    SBJ = ['01', '02', '03', '04', '06', '07', '08', '09']
+    SESSION = ['01', '02', '03', '04', '05', '06']
+    sbj_result = []
+    for sbj in SBJ:
+        Y_PRED = {}
+        Y_TRUE = {}
+        AUC = {}
+        mean_ses_acc = 0
+        mean_ses_precision = 0
+        mean_ses_recall = 0
+        mean_ses_f1 = 0
+        mean_ses_auc = 0
+        for ses in SESSION:
+            print(sbj + '_' + ses)
+            file_name = sbj + '_' + ses + '.json'
+            with open(os.path.join(FOLDER, file_name)) as json_file:
+                data = json.load(json_file)
+            Y_pred = data['Y_pred']
+            Y_true = data['Y_true']
+            if len(np.shape(Y_pred)) > 1:
+                Y_pred = Y_pred[:, 1]
+                Y_true = Y_true[:, 1]
+            Y_pred = np.array(Y_pred)
+            Y_true = np.array(Y_true)
+            ##### balance #####
+            target_ind = np.where(Y_true == 1)[0]
+            ratio = int((len(Y_true) - len(target_ind)) / len(target_ind))
+            for i in range(ratio):
+                Y_pred = np.concatenate([Y_pred, Y_pred[target_ind]])
+                Y_true = np.concatenate([Y_true, Y_true[target_ind]])
+            # print('total: ' + str(len(Y_true)) + '. targets: ' + str(np.sum(Y_true)))
+            ### balance end ###
+            Y_PRED[ses] = Y_pred
+            Y_TRUE[ses] = Y_true
+            AUC[ses] = data['auc']
+            ####### find best threshold #######
+            best_ses_acc = 0
+            for threshold in np.linspace(0, 1, num=100, endpoint=False):
+                pred = np.zeros(np.shape(Y_PRED[ses])[0])
+                pred[np.where(Y_PRED[ses] > threshold)[0]] = 1
+                TN, FP, FN, TP = confusion_matrix(y_true=Y_TRUE[ses], y_pred=pred).ravel()
+                ses_acc = (TP + TN) / (TP + TN + FP + FN)
+                if ses_acc > best_ses_acc and TP != 0:
+                    best_ses_acc = ses_acc
+                    best_ses_precision = TP / (TP + FP)
+                    best_ses_recall = TP / (TP + FN)
+                    best_ses_f1 = 2 * (best_ses_precision * best_ses_recall) / (best_ses_precision + best_ses_recall)
+            ###### find best threshold end ######
+            mean_ses_acc = mean_ses_acc + best_ses_acc
+            mean_ses_precision = mean_ses_precision + best_ses_precision
+            mean_ses_recall = mean_ses_recall + best_ses_recall
+            mean_ses_f1 = mean_ses_f1 + best_ses_f1
+            mean_ses_auc = mean_ses_auc + data['auc']
+        mean_ses_acc = mean_ses_acc/len(SESSION)
+        mean_ses_precision = mean_ses_precision/len(SESSION)
+        mean_ses_recall = mean_ses_recall/len(SESSION)
+        mean_ses_f1 = mean_ses_f1/len(SESSION)
+        mean_ses_auc = mean_ses_auc/len(SESSION)
+        sbj_result.append([mean_ses_acc, mean_ses_precision, mean_ses_recall, mean_ses_f1, mean_ses_auc])
+
+    return sbj_result
+
+
 def _read_prediction(FOLDER, SBJ_PLOT):
     files = os.listdir(FOLDER)
     sbj_old = ''
@@ -61,6 +129,7 @@ def _read_prediction(FOLDER, SBJ_PLOT):
                 result_pred[sbj + 'P'].append(data['test_P_val'][best_ind])
                 result_pred[sbj + 'N'].append(data['test_N_val'][best_ind])
     return result_pred
+
 
 def _plot_prediction(SBJ_PLOT):
     data_to_box = []
@@ -111,6 +180,7 @@ def _plot_prediction(SBJ_PLOT):
 
     return
 
+
 def _epoch_plot(SBJ_PLOT):
     result_acc_1 = _read_auc(FOLDER_1)
     result_acc_2 = _read_auc(FOLDER_2)
@@ -142,8 +212,18 @@ def _epoch_plot(SBJ_PLOT):
 def _epoch_plot_methods(SBJ_PLOT):
     fig = plt.figure(1)
     result_mean_all_subs = {}
+    result_mean_all_subs8 = {}
     y_lim = [0.5, 1.0]
-
+    COLOR = {
+        '01': 'darkcyan',
+        '02': 'steelblue',
+        '03': 'rebeccapurple',
+        '04': 'deeppink',
+        '06': 'brown',
+        '07': 'mediumseagreen',
+        '08': 'olive',
+        '09': 'gray',
+    }
 
     ax0 = fig.add_subplot(151)
     ax0.set_title('CSP-LDA')
@@ -151,38 +231,53 @@ def _epoch_plot_methods(SBJ_PLOT):
     ax0.set_xlabel('Repetition')
     ax0.set_ylim(y_lim)
     ax0.yaxis.grid(True)
-    # result_acc_1 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_epoch_1')
-    # result_acc_2 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_epoch_2')
-    # result_acc_3 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_epoch_3')
-    # result_acc_4 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_epoch_4')
-    # result_acc_5 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_epoch_5')
-    # result_acc_6 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_epoch_6')
-    result_acc_1 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_8ch_epoch_1')
-    result_acc_2 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_8ch_epoch_2')
-    result_acc_3 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_8ch_epoch_3')
-    result_acc_4 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_8ch_epoch_4')
-    result_acc_5 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_8ch_epoch_5')
-    result_acc_6 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_8ch_epoch_6')
+    result_acc_1 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_epoch_1')
+    result_acc_2 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_epoch_2')
+    result_acc_3 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_epoch_3')
+    result_acc_4 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_epoch_4')
+    result_acc_5 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_epoch_5')
+    result_acc_6 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_epoch_6')
+    result_acc8_1 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_8ch_epoch_1')
+    result_acc8_2 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_8ch_epoch_2')
+    result_acc8_3 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_8ch_epoch_3')
+    result_acc8_4 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_8ch_epoch_4')
+    result_acc8_5 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_8ch_epoch_5')
+    result_acc8_6 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_csplda_8ch_epoch_6')
     result_mean = {}
+    result_mean8 = {}
     result_mean_all_subs['csplda'] = np.zeros(6)
+    result_mean_all_subs8['csplda'] = np.zeros(6)
     for sbj in SBJ_PLOT:
         result_mean[sbj] = [np.mean(np.array(result_acc_1[sbj])),
                             np.mean(np.array(result_acc_2[sbj])),
                             np.mean(np.array(result_acc_3[sbj])),
                             np.mean(np.array(result_acc_4[sbj])),
                             np.mean(np.array(result_acc_5[sbj])),
-                            np.mean(np.array(result_acc_6[sbj]))]
+                            np.mean(np.array(result_acc_6[sbj])),
+                            ]
         result_mean_all_subs['csplda'] = result_mean_all_subs['csplda'] + np.squeeze(np.array(result_mean[sbj]))
+        result_mean8[sbj] = [np.mean(np.array(result_acc8_1[sbj])),
+                            np.mean(np.array(result_acc8_2[sbj])),
+                            np.mean(np.array(result_acc8_3[sbj])),
+                            np.mean(np.array(result_acc8_4[sbj])),
+                            np.mean(np.array(result_acc8_5[sbj])),
+                            np.mean(np.array(result_acc8_6[sbj])),
+                            ]
+        result_mean_all_subs8['csplda'] = result_mean_all_subs8['csplda'] + np.squeeze(np.array(result_mean8[sbj]))
         stds = [np.mean(np.std(result_acc_1[sbj])),
                 np.std(np.array(result_acc_2[sbj])),
                 np.std(np.array(result_acc_3[sbj]))]
         print(result_mean[sbj])
         print([stds])
         print('  ')
-        ax0.plot(['1', '2', '3', '4', '5', '6'], result_mean[sbj], 'o-')
+        ax0.plot(['1', '2', '3', '4', '5', '6'], result_mean[sbj], 'o-', color=COLOR[sbj])
+        ax0.plot(['1', '2', '3', '4', '5', '6'], result_mean8[sbj], 's--', color=COLOR[sbj])
     result_mean_all_subs['csplda'] = result_mean_all_subs['csplda'] / 8
-    ax0.legend(['SBJ01', 'SBJ02', 'SBJ03', 'SBJ04', 'SBJ05', 'SBJ06', 'SBJ07', 'SBJ08'])
-
+    result_mean_all_subs8['csplda'] = result_mean_all_subs8['csplda'] / 8
+    ax0.legend(['SBJ01', 'SBJ01_8', 'SBJ02', 'SBJ02_8',
+                'SBJ03', 'SBJ03_8', 'SBJ04', 'SBJ04_8',
+                'SBJ05', 'SBJ05_8', 'SBJ06', 'SBJ06_8',
+                'SBJ07', 'SBJ07_8', 'SBJ08', 'SBJ08_8'])
     ax1 = fig.add_subplot(152)
     ax1.set_title('EEGNET')
     ax1.set_ylabel('AUC')
@@ -195,8 +290,16 @@ def _epoch_plot_methods(SBJ_PLOT):
     result_acc_4 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_epoch_4')
     result_acc_5 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_epoch_5')
     result_acc_6 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_epoch_6')
+    result_acc8_1 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_8ch_epoch_1')
+    result_acc8_2 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_8ch_epoch_2')
+    result_acc8_3 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_8ch_epoch_3')
+    result_acc8_4 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_8ch_epoch_4')
+    result_acc8_5 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_8ch_epoch_5')
+    result_acc8_6 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_8ch_epoch_6')
     result_mean = {}
     result_mean_all_subs['eegnet'] = np.zeros(6)
+    result_mean8 = {}
+    result_mean_all_subs8['eegnet'] = np.zeros(6)
     for sbj in SBJ_PLOT:
         result_mean[sbj] = [np.mean(np.array(result_acc_1[sbj])),
                             np.mean(np.array(result_acc_2[sbj])),
@@ -206,16 +309,28 @@ def _epoch_plot_methods(SBJ_PLOT):
                             np.mean(np.array(result_acc_6[sbj]))
                             ]
         result_mean_all_subs['eegnet'] = result_mean_all_subs['eegnet'] + np.squeeze(np.array(result_mean[sbj]))
+        result_mean8[sbj] = [np.mean(np.array(result_acc8_1[sbj])),
+                             np.mean(np.array(result_acc8_2[sbj])),
+                             np.mean(np.array(result_acc8_3[sbj])),
+                             np.mean(np.array(result_acc8_4[sbj])),
+                             np.mean(np.array(result_acc8_5[sbj])),
+                             np.mean(np.array(result_acc8_6[sbj])),
+                             ]
+        result_mean_all_subs8['eegnet'] = result_mean_all_subs8['eegnet'] + np.squeeze(np.array(result_mean8[sbj]))
         stds = [np.mean(np.std(result_acc_1[sbj])),
                 np.std(np.array(result_acc_2[sbj])),
                 np.std(np.array(result_acc_3[sbj]))]
         print(result_mean[sbj])
         print([stds])
         print('  ')
-        ax1.plot(['1', '2', '3', '4', '5', '6'], result_mean[sbj], 'o-')
+        ax1.plot(['1', '2', '3', '4', '5', '6'], result_mean[sbj], 'o-', color=COLOR[sbj])
+        ax1.plot(['1', '2', '3', '4', '5', '6'], result_mean8[sbj], 's--', color=COLOR[sbj])
     result_mean_all_subs['eegnet'] = result_mean_all_subs['eegnet'] / 8
-    ax1.legend(['SBJ01', 'SBJ02', 'SBJ03', 'SBJ04', 'SBJ05', 'SBJ06', 'SBJ07', 'SBJ08'])
-
+    result_mean_all_subs8['eegnet'] = result_mean_all_subs8['eegnet'] / 8
+    ax1.legend(['SBJ01', 'SBJ01_8', 'SBJ02', 'SBJ02_8',
+                'SBJ03', 'SBJ03_8', 'SBJ04', 'SBJ04_8',
+                'SBJ05', 'SBJ05_8', 'SBJ06', 'SBJ06_8',
+                'SBJ07', 'SBJ07_8', 'SBJ08', 'SBJ08_8'])
     ax2 = fig.add_subplot(153)
     ax2.set_title('EFFNET_V2')
     ax2.set_ylabel('AUC')
@@ -228,8 +343,16 @@ def _epoch_plot_methods(SBJ_PLOT):
     result_acc_4 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_epoch_4')
     result_acc_5 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_epoch_5')
     result_acc_6 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_epoch_6')
+    result_acc8_1 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_8ch_epoch_1')
+    result_acc8_2 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_8ch_epoch_2')
+    result_acc8_3 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_8ch_epoch_3')
+    result_acc8_4 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_8ch_epoch_4')
+    result_acc8_5 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_8ch_epoch_5')
+    result_acc8_6 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_8ch_epoch_6')
     result_mean = {}
     result_mean_all_subs['effnetv2'] = np.zeros(6)
+    result_mean8 = {}
+    result_mean_all_subs8['effnetv2'] = np.zeros(6)
     for sbj in SBJ_PLOT:
         result_mean[sbj] = [np.mean(np.array(result_acc_1[sbj])),
                             np.mean(np.array(result_acc_2[sbj])),
@@ -239,16 +362,28 @@ def _epoch_plot_methods(SBJ_PLOT):
                             np.mean(np.array(result_acc_6[sbj]))
                             ]
         result_mean_all_subs['effnetv2'] = result_mean_all_subs['effnetv2'] + np.squeeze(np.array(result_mean[sbj]))
+        result_mean8[sbj] = [np.mean(np.array(result_acc8_1[sbj])),
+                             np.mean(np.array(result_acc8_2[sbj])),
+                             np.mean(np.array(result_acc8_3[sbj])),
+                             np.mean(np.array(result_acc8_4[sbj])),
+                             np.mean(np.array(result_acc8_5[sbj])),
+                             np.mean(np.array(result_acc8_6[sbj])),
+                             ]
+        result_mean_all_subs8['effnetv2'] = result_mean_all_subs8['effnetv2'] + np.squeeze(np.array(result_mean8[sbj]))
         stds = [np.mean(np.std(result_acc_1[sbj])),
                 np.std(np.array(result_acc_2[sbj])),
                 np.std(np.array(result_acc_3[sbj]))]
         print(result_mean[sbj])
         print([stds])
         print('  ')
-        ax2.plot(['1', '2', '3', '4', '5', '6'], result_mean[sbj], 'o-')
+        ax2.plot(['1', '2', '3', '4', '5', '6'], result_mean[sbj], 'o-', color=COLOR[sbj])
+        ax2.plot(['1', '2', '3', '4', '5', '6'], result_mean8[sbj], 's--', color=COLOR[sbj])
     result_mean_all_subs['effnetv2'] = result_mean_all_subs['effnetv2'] / 8
-    ax2.legend(['SBJ01', 'SBJ02', 'SBJ03', 'SBJ04', 'SBJ05', 'SBJ06', 'SBJ07', 'SBJ08'])
-
+    result_mean_all_subs8['effnetv2'] = result_mean_all_subs8['effnetv2'] / 8
+    ax2.legend(['SBJ01', 'SBJ01_8', 'SBJ02', 'SBJ02_8',
+                'SBJ03', 'SBJ03_8', 'SBJ04', 'SBJ04_8',
+                'SBJ05', 'SBJ05_8', 'SBJ06', 'SBJ06_8',
+                'SBJ07', 'SBJ07_8', 'SBJ08', 'SBJ08_8'])
     ax3 = fig.add_subplot(154)
     ax3.set_title('CUSTOM')
     ax3.set_ylabel('AUC')
@@ -261,8 +396,16 @@ def _epoch_plot_methods(SBJ_PLOT):
     result_acc_4 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet2_epoch_4')
     result_acc_5 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet2_epoch_5')
     result_acc_6 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet2_epoch_6')
+    result_acc8_1 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet2_8ch_epoch_1')
+    result_acc8_2 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet2_8ch_epoch_2')
+    result_acc8_3 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet2_8ch_epoch_3')
+    result_acc8_4 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet2_8ch_epoch_4')
+    result_acc8_5 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet2_8ch_epoch_5')
+    result_acc8_6 = _read_auc(r'D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet2_8ch_epoch_6')
     result_mean = {}
     result_mean_all_subs['custom'] = np.zeros(6)
+    result_mean8 = {}
+    result_mean_all_subs8['custom'] = np.zeros(6)
     for sbj in SBJ_PLOT:
         result_mean[sbj] = [np.mean(np.array(result_acc_1[sbj])),
                             np.mean(np.array(result_acc_2[sbj])),
@@ -272,22 +415,40 @@ def _epoch_plot_methods(SBJ_PLOT):
                             np.mean(np.array(result_acc_6[sbj]))
                             ]
         result_mean_all_subs['custom'] = result_mean_all_subs['custom'] + np.squeeze(np.array(result_mean[sbj]))
+        result_mean8[sbj] = [np.mean(np.array(result_acc8_1[sbj])),
+                             np.mean(np.array(result_acc8_2[sbj])),
+                             np.mean(np.array(result_acc8_3[sbj])),
+                             np.mean(np.array(result_acc8_4[sbj])),
+                             np.mean(np.array(result_acc8_5[sbj])),
+                             np.mean(np.array(result_acc8_6[sbj])),
+                             ]
+        result_mean_all_subs8['custom'] = result_mean_all_subs8['custom'] + np.squeeze(np.array(result_mean8[sbj]))
         stds = [np.mean(np.std(result_acc_1[sbj])),
                 np.std(np.array(result_acc_2[sbj])),
                 np.std(np.array(result_acc_3[sbj]))]
         print(result_mean[sbj])
         print([stds])
         print('  ')
-        ax3.plot(['1', '2', '3', '4', '5', '6'], result_mean[sbj], 'o-')
+        ax3.plot(['1', '2', '3', '4', '5', '6'], result_mean[sbj], 'o-', color=COLOR[sbj])
+        ax3.plot(['1', '2', '3', '4', '5', '6'], result_mean8[sbj], 's--', color=COLOR[sbj])
     result_mean_all_subs['custom'] = result_mean_all_subs['custom']/8
-    ax3.legend(['SBJ01', 'SBJ02', 'SBJ03', 'SBJ04', 'SBJ05', 'SBJ06', 'SBJ07', 'SBJ08'])
+    result_mean_all_subs8['custom'] = result_mean_all_subs8['custom']/8
+    ax3.legend(['SBJ01', 'SBJ01_8', 'SBJ02', 'SBJ02_8',
+                'SBJ03', 'SBJ03_8', 'SBJ04', 'SBJ04_8',
+                'SBJ05', 'SBJ05_8', 'SBJ06', 'SBJ06_8',
+                'SBJ07', 'SBJ07_8', 'SBJ08', 'SBJ08_8'])
 
     ax = fig.add_subplot(155)
-    ax.plot(['1', '2', '3', '4', '5', '6'], result_mean_all_subs['csplda'], 'o-')
-    ax.plot(['1', '2', '3', '4', '5', '6'], result_mean_all_subs['eegnet'], 'o-')
-    ax.plot(['1', '2', '3', '4', '5', '6'], result_mean_all_subs['effnetv2'], 'o-')
-    ax.plot(['1', '2', '3', '4', '5', '6'], result_mean_all_subs['custom'], 'o-')
-    ax.legend(['CSP-LDA', 'EEGNET', 'EFFNETv2', 'CUSTOM'])
+    ax.plot(['1', '2', '3', '4', '5', '6'], result_mean_all_subs['csplda'], 'o-', color=COLOR['01'])
+    ax.plot(['1', '2', '3', '4', '5', '6'], result_mean_all_subs8['csplda'], 's--', color=COLOR['01'])
+    ax.plot(['1', '2', '3', '4', '5', '6'], result_mean_all_subs['eegnet'], 'o-', color=COLOR['02'])
+    ax.plot(['1', '2', '3', '4', '5', '6'], result_mean_all_subs8['eegnet'], 's--', color=COLOR['02'])
+    ax.plot(['1', '2', '3', '4', '5', '6'], result_mean_all_subs['effnetv2'], 'o-', color=COLOR['03'])
+    ax.plot(['1', '2', '3', '4', '5', '6'], result_mean_all_subs8['effnetv2'], 's--', color=COLOR['03'])
+    ax.plot(['1', '2', '3', '4', '5', '6'], result_mean_all_subs['custom'], 'o-', color=COLOR['04'])
+    ax.plot(['1', '2', '3', '4', '5', '6'], result_mean_all_subs8['custom'], 's--', color=COLOR['04'])
+
+    ax.legend(['CSP-LDA', 'CSP-LDA_8', 'EEGNET', 'EEGNET_8', 'EFFNETv2', 'EFFNETV2_8', 'CUSTOM', 'CUSTOM_8'])
     ax.set_ylabel('AUC')
     ax.set_xlabel('Repetition')
     ax.set_ylim(y_lim)
@@ -298,6 +459,10 @@ def _epoch_plot_methods(SBJ_PLOT):
     # plt.grid(axis='y')
     plt.show()
     return
+
+
+# def _acc_plot():
+
 
 
 def _signal_plot(SBJ_PLOT, CH=0):
@@ -352,8 +517,63 @@ def _signal_plot(SBJ_PLOT, CH=0):
     plt.show()
 
 
+def _write_csv():
+    result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_0ch_epoch_1/')
+    result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_0ch_epoch_2/')
+    result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_0ch_epoch_3/')
+    result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_0ch_epoch_4/')
+    result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_0ch_epoch_5/')
+    result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_0ch_epoch_6/')
+    # result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_custom_0ch_epoch_1/')
+    # result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_custom_0ch_epoch_2/')
+    # result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_custom_0ch_epoch_3/')
+    # result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_custom_0ch_epoch_4/')
+    # result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_custom_0ch_epoch_5/')
+    # result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_custom_0ch_epoch_6/')
+    # result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_0ch_epoch_1/')
+    # result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_0ch_epoch_2/')
+    # result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_0ch_epoch_3/')
+    # result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_0ch_epoch_4/')
+    # result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_0ch_epoch_5/')
+    # result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_0ch_epoch_6/')
+    with open('results_noICA_eegnet_0ch.csv', 'w', encoding='UTF8', newline='') as f:
+    # with open('results_noICA_custom_0ch.csv', 'w', encoding='UTF8', newline='') as f:
+    # with open('results_noICA_effnetv2_0ch.csv', 'w', encoding='UTF8', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['Epochs', '1', '2', '3', '4', '5', '6'])
+        for i in range(8):
+            row_acc = ['acc', result1[i][0], result2[i][0], result3[i][0],
+                             result4[i][0], result5[i][0], result6[i][0]]
+            row_precision = ['precision', result1[i][1], result2[i][1], result3[i][1],
+                             result4[i][1], result5[i][1], result6[i][1]]
+            row_recall = ['recall', result1[i][2], result2[i][2], result3[i][2],
+                             result4[i][2], result5[i][2], result6[i][2]]
+            row_f1 = ['f1', result1[i][3], result2[i][3], result3[i][3],
+                             result4[i][3], result5[i][3], result6[i][3]]
+            row_auc = ['auc', result1[i][4], result2[i][4], result3[i][4],
+                      result4[i][4], result5[i][4], result6[i][4]]
+            writer.writerow(row_acc)
+            writer.writerow(row_precision)
+            writer.writerow(row_recall)
+            writer.writerow(row_f1)
+            writer.writerow(row_auc)
+    f.close()
+
+    return
+
+
+
 # _epoch_plot(SBJ_PLOT=['01', '02', '03', '04', '06', '07', '08', '09'])
-_epoch_plot_methods(SBJ_PLOT=['01', '02', '03', '04', '06', '07', '08', '09'])
+# _epoch_plot_methods(SBJ_PLOT=['01', '02', '03', '04', '06', '07', '08', '09'])
 # _plot_prediction(SBJ_PLOT=['02', '04'])
 # _signal_plot(SBJ_PLOT=['01', '02', '03', '04', '06', '07', '08', '09'], CH=29)
 # _signal_plot(SBJ_PLOT=['01'], CH=29)
+# result = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_0ch_epoch_1/')
+# _write_csv()
+# with open('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_eegnet_0ch_epoch_1/01_01.json') as json_file:
+with open('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_0ch_epoch_4/01_01.json') as json_file:
+    data = json.load(json_file)
+plt.plot(data['Y_pred'], 'o')
+plt.plot(data['Y_true'], '-')
+plt.show()
+print('a')
