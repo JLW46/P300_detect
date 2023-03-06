@@ -298,7 +298,7 @@ def _run_cnn_test2(epochs=1):
     # CH_SELECT = [9, 27, 45]
     CH_SELECT = False
     for sbj in ['01', '02', '03', '04', '06', '07', '08', '09']:
-    # for sbj in ['04', '09']:
+    # for sbj in ['04', '06', '07', '08', '09']:
         # create TRAIN
         TRAIN = []
         for set in ['_01', '_02', '_03', '_04', '_05', '_06']:
@@ -306,6 +306,7 @@ def _run_cnn_test2(epochs=1):
         # run
         for item in TRAIN:
         # if True:
+        #     TEST = ['07_01.set']
             TEST = [item]
             X_train, Y_train, X_test, Y_test, class_weights, events_train, \
             sample_weights_train, sample_weights_test = util_preprocessing._build_dataset_eeglab(FOLDER=FOLDER, CLASS=CLASS,
@@ -313,7 +314,8 @@ def _run_cnn_test2(epochs=1):
                                                                                                  ch_last=False,
                                                                                                  trainset_ave=epochs,
                                                                                                  testset_ave=epochs,
-                                                                                                 ch_select=CH_SELECT)
+                                                                                                 ch_select=CH_SELECT,
+                                                                                                 rep=4)
             print(np.shape(X_train))
             print(np.shape(Y_train))
             print(np.shape(X_test))
@@ -324,15 +326,17 @@ def _run_cnn_test2(epochs=1):
             keras.backend.clear_session()
             callback_1 = util_tf.IterTracker(X_test=X_test, Y_test=Y_test)
             # model = util_tf._eegnet(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
-            model = util_tf._custom(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
+            # model = util_tf._custom(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
             # model = util_tf._effnetV2(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
+            model = util_tf._vit(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
             model.fit(x=X_train, y=Y_train, epochs=200, batch_size=16, callbacks=[callback_1])
             print('---------++++++++++++______________')
             print(callback_1.best_scores)
             print('DONE!')
-            # SAVE_PATH = r'results_noICA_loss_eegnet_0ch_epoch_' + str(epochs) + '/'
-            SAVE_PATH = r'results_noICA_loss_custom_0ch_epoch_' + str(epochs) + '/'
+            # SAVE_PATH = r'results_noICA_loss_eegnet_8ch_epoch_' + str(epochs) + '/'
+            # SAVE_PATH = r'results_noICA_loss_custom_8ch_epoch_' + str(epochs) + '/'
             # SAVE_PATH = r'results_noICA_effnetv2_epoch_1/'
+            SAVE_PATH = r'results_noICA_loss_vit_0ch_epoch_' + str(epochs) + '/'
             if os.path.exists(SAVE_PATH):
                 pass
             else:
@@ -342,7 +346,7 @@ def _run_cnn_test2(epochs=1):
                 with open(FILE_NAME) as json_file:
                     data = json.load(json_file)
                     old_loss = data['loss']
-                if callback_1.best_scores['loss'] > old_loss:
+                if callback_1.best_scores['loss'] < old_loss:
                     with open(FILE_NAME, "w") as json_file:
                         json.dump(callback_1.best_scores, json_file)
                     model.set_weights(callback_1.best_weights)
@@ -379,8 +383,8 @@ def _run_csp_lda(display=False, epochs=1):
         '128': [0]  # t vstim
     }
     # CH_SELECT = [9, 27, 45, 59, 43, 47, 50, 56]
-    CH_SELECT = [9, 27, 45]
-    # CH_SELECT = False
+    # CH_SELECT = [9, 27, 45]
+    CH_SELECT = False
     for sbj in ['01', '02', '03', '04', '06', '07', '08', '09']:
     # for sbj in ['08', '09']:
         # create TRAIN
@@ -396,13 +400,11 @@ def _run_csp_lda(display=False, epochs=1):
                                                                                                  ch_last=False,
                                                                                                  trainset_ave=epochs,
                                                                                                  testset_ave=epochs,
-                                                                                                 ch_select=CH_SELECT)
+                                                                                                 ch_select=CH_SELECT,
+                                                                                                 rep=4)
 
             X_train = np.reshape(X_train, (np.shape(X_train)[0], np.shape(X_train)[1], np.shape(X_train)[2]))
             X_test = np.reshape(X_test, (np.shape(X_test)[0], np.shape(X_test)[1], np.shape(X_test)[2]))
-            # CHS = [27]
-            # X_train = X_train[:, CHS, :]
-            # X_test = X_test[:, CHS, :]
             Y_train = np.squeeze(Y_train)
             Y_test = np.squeeze(Y_test)
             print(np.shape(X_train))
@@ -420,11 +422,12 @@ def _run_csp_lda(display=False, epochs=1):
             fpr, tpr, thresholds = sklearn.metrics.roc_curve(y_true=Y_test, y_score=proba[:, 1])
             roc_auc = sklearn.metrics.auc(fpr, tpr)
             best_scores = {
+                'loss': 0,
                 'auc': roc_auc,
                 'Y_pred': np.squeeze(proba[:, 1]).tolist(),
                 'Y_true': Y_test.tolist()
             }
-            SAVE_PATH = r'results_noICA_csplda_3ch_epoch_' + str(epochs) + '/'
+            SAVE_PATH = r'results_noICA_loss_csplda_0ch_epoch_' + str(epochs) + '/'
             if os.path.exists(SAVE_PATH):
                 pass
             else:
@@ -440,7 +443,6 @@ def _run_csp_lda(display=False, epochs=1):
             else:
                 with open(FILE_NAME, "w") as json_file:
                     json.dump(best_scores, json_file)
-
     # if display is True:
     #     # fpr, tpr, thresholds = sklearn.metrics.roc_curve(y_true=Y_test, y_score=proba[:, 1], sample_weight=sample_weights_test)
     #     fpr, tpr, thresholds = sklearn.metrics.roc_curve(y_true=Y_test, y_score=proba[:, 1])
@@ -452,6 +454,7 @@ def _run_csp_lda(display=False, epochs=1):
     return
 
 for i in [1, 2, 3, 4, 5, 6]:
-    # _run_csp_lda(display=False, epochs=i)
-    _run_cnn_test2(epochs=4)
+# for i in [5, 6]:
+#     _run_csp_lda(display=False, epochs=i)
+    _run_cnn_test2(epochs=i)
 # _run_cnn_test2(epochs=6)

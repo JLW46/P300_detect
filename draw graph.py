@@ -6,6 +6,8 @@ import util_preprocessing
 import csv
 import sklearn
 from sklearn.metrics import confusion_matrix
+import matplotlib.font_manager as font_manager
+import mne
 
 
 FOLDER_1 = r'D:/Code/PycharmProjects/P300_detect/results_noICA_epoch_1'
@@ -461,8 +463,195 @@ def _epoch_plot_methods(SBJ_PLOT):
     return
 
 
-# def _acc_plot():
+def _acc_plot():
+    fig = plt.figure(1)
+    acc_lines = [2, 7, 12, 17, 22, 27, 32, 37]
+    auc_lines = [6, 11, 16, 11, 26, 21, 36, 41]
+    X = ['1', '2', '3', '4', '5', '6']
+    COLOR_1 = ['maroon', 'lightseagreen', 'navy']
+    COLOR_2 = ['maroon', 'lightseagreen', 'navy']
+    ax1 = fig.add_subplot(111)
+    color_ind = 0
+    for n_ch in [3, 8, 0]:
+        filename = 'D:/Code/PycharmProjects/P300_detect/results_noICA_loss_csplda_' + str(n_ch) + 'ch.csv'
+        with open(filename) as csv_file:
+            csv_reader = csv.reader(csv_file)
+            line_count = 0
+            acc_results_csplda = []
+            for row in csv_reader:
+                line_count = line_count + 1
+                if line_count in acc_lines:
+                    acc_results_csplda.append((np.array(row[1:]).astype(dtype=float)))
+        csv_file.close()
+        acc_results_csplda = np.array(acc_results_csplda)
+        acc_results_csplda_mean = np.mean(acc_results_csplda, axis=0)
+        ax1.plot(X, acc_results_csplda_mean, 'o-.', color=COLOR_1[color_ind])
+        color_ind = color_ind + 1
+    color_ind = 0
+    for n_ch in [3, 8, 0]:
+        filename = 'D:/Code/PycharmProjects/P300_detect/results_noICA_loss_eegnet_' + str(n_ch) + 'ch.csv'
+        with open(filename) as csv_file:
+            csv_reader = csv.reader(csv_file)
+            line_count = 0
+            acc_results_eegnet = []
+            for row in csv_reader:
+                line_count = line_count + 1
+                if line_count in acc_lines:
+                    acc_results_eegnet.append((np.array(row[1:]).astype(dtype=float)))
+        csv_file.close()
+        acc_results_eegnet = np.array(acc_results_eegnet)
+        acc_results_eegnet_mean = np.mean(acc_results_eegnet, axis=0)
+        ax1.plot(X, acc_results_eegnet_mean, 'o--', color=COLOR_1[color_ind])
+        color_ind = color_ind + 1
+    color_ind = 0
+    for n_ch in [3, 8, 0]:
+        filename = 'D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_' + str(n_ch) + 'ch.csv'
+        with open(filename) as csv_file:
+            csv_reader = csv.reader(csv_file)
+            line_count = 0
+            acc_results_effnet = []
+            for row in csv_reader:
+                line_count = line_count + 1
+                if line_count in acc_lines:
+                    acc_results_effnet.append((np.array(row[1:]).astype(dtype=float)))
+        csv_file.close()
+        acc_results_effnet = np.array(acc_results_effnet)
+        acc_results_effnet_mean = np.mean(acc_results_effnet, axis=0)
+        ax1.plot(X, acc_results_effnet_mean, 'v:', color=COLOR_1[color_ind])
+        color_ind = color_ind + 1
+    color_ind = 0
+    for n_ch in [3, 8, 0]:
+        filename = 'D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_' + str(n_ch) + 'ch.csv'
+        with open(filename) as csv_file:
+            csv_reader = csv.reader(csv_file)
+            line_count = 0
+            acc_results_custom = []
+            for row in csv_reader:
+                line_count = line_count + 1
+                if line_count in acc_lines:
+                    acc_results_custom.append((np.array(row[1:]).astype(dtype=float)))
+        csv_file.close()
+        acc_results_custom = np.array(acc_results_custom)
+        acc_results__custom_mean = np.mean(acc_results_custom, axis=0)
+        ax1.plot(X, acc_results__custom_mean, 's-', color=COLOR_2[color_ind])
+        color_ind = color_ind + 1
+    legends = ['CSPLDA 3 CH', 'CSPLDA 8 CH', 'CSPLDA 64 CH',
+               'EEGNET 3 CH', 'EEGNET 8 CH', 'EEGNET 64 CH',
+               'EFFNET 3 CH', 'EFFNET 8 CH', 'EFFNET 64 CH',
+               'CUSTOM 3 CH', 'CUSTOM 8 CH', 'CUSTOM 64 CH']
+    ax1.legend(legends)
+    ax1.set_ylabel('ACC')
+    ax1.set_xlabel('Number of trials')
+    ax1.yaxis.grid(True)
+    plt.show()
+    print('a')
+    return
 
+
+def _acc_plot_2():
+    fig = plt.figure(1)
+    acc_lines = [2, 7, 12, 17, 22, 27, 32, 37]
+    f1_lines = [5, 10, 15, 20, 25, 30, 35, 40]
+    auc_lines = [6, 11, 16, 11, 26, 21, 36, 41]
+    X = ['1', '2', '3', '4', '5', '6']
+    STYLE = {
+        'LDA': 's-',
+        'EEGNET': 'mediumseagreen',
+        'EFFNET': 'royalblue',
+        'CUSTOM': 'darkred'
+    }
+    COLOR = {
+        'LDA': 'darkcyan',
+        'EEGNET': 'mediumseagreen',
+        'EFFNET': 'royalblue',
+        'CUSTOM': 'darkred'
+    }
+    FILE_NAMES = {
+        'LDA': 'D:/Code/PycharmProjects/P300_detect/results_noICA_loss_csplda_',
+        'EEGNET': 'D:/Code/PycharmProjects/P300_detect/results_noICA_loss_eegnet_',
+        'EFFNET': 'D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_',
+        'CUSTOM': 'D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_'
+    }
+    TITLES = {
+        3: '3 CH',
+        8: '8 CH',
+        0: 'All CH'
+    }
+    font_title = font_manager.FontProperties(family='Times New Roman', weight='bold', style='normal', size=18)
+    font = font_manager.FontProperties(family='Times New Roman', style='normal', size=18)
+    ax_acc = {}
+    ax_auc = {}
+    ax_f1 = {}
+    ACC = {}
+    AUC = {}
+    F1 = {}
+    n_1 = 0
+    for n_ch in [3, 8, 0]:
+        if n_ch == 3:
+            ax_acc[n_ch] = fig.add_subplot(int('33' + str(1 + n_1)))
+            ax_auc[n_ch] = fig.add_subplot(int('33' + str(4 + n_1)))
+            ax_f1[n_ch] = fig.add_subplot(int('33' + str(7 + n_1)))
+        else:
+            ax_acc[n_ch] = fig.add_subplot(int('33' + str(1 + n_1)), sharey=ax_acc[3])
+            ax_auc[n_ch] = fig.add_subplot(int('33' + str(4 + n_1)), sharey=ax_auc[3])
+            ax_f1[n_ch] = fig.add_subplot(int('33' + str(7 + n_1)), sharey=ax_f1[3])
+        ax_acc[n_ch].set_xticks([])
+        ax_auc[n_ch].set_xticks([])
+        ax_acc[n_ch].set_ylim([0.7, 1.0])
+        ax_auc[n_ch].set_ylim([0.65, 1.0])
+        ax_f1[n_ch].set_ylim([0.75, 1.0])
+        ax_acc[n_ch].set_title(TITLES[n_ch], fontsize=18, font='Times New Roman')
+        ax_acc[n_ch].grid(axis='y')
+        ax_auc[n_ch].grid(axis='y')
+        ax_f1[n_ch].grid(axis='y')
+        if n_ch == 8:
+            ax_f1[n_ch].set_xlabel('Number of trials', fontsize=18, font='Times New Roman')
+        if n_ch == 3:
+            ax_acc[n_ch].set_ylabel('ACC', fontsize=18, font='Times New Roman')
+            plt.yticks(fontname='Times New Roman', size=18)
+            ax_auc[n_ch].set_ylabel('AUC', fontsize=18, font='Times New Roman')
+            plt.yticks(fontname='Times New Roman', size=18)
+            ax_f1[n_ch].set_ylabel('F1', fontsize=18, font='Times New Roman')
+            plt.yticks(fontname='Times New Roman', size=18)
+        else:
+            ax_acc[n_ch].tick_params(labelbottom=False, labeltop=False, labelleft=False, labelright=False)
+            ax_auc[n_ch].tick_params(labelbottom=False, labeltop=False, labelleft=False, labelright=False)
+            ax_f1[n_ch].tick_params(labelbottom=True, labeltop=False, labelleft=False, labelright=False)
+        for key in FILE_NAMES.keys():
+            with open(FILE_NAMES[key] + str(n_ch) + 'ch.csv') as csv_file:
+                csv_reader = csv.reader(csv_file)
+                line_count = 0
+                acc_results = []
+                auc_results = []
+                f1_results = []
+                for row in csv_reader:
+                    line_count = line_count + 1
+                    if line_count in acc_lines:
+                        acc_results.append(np.array(row[1:]).astype(dtype=float))
+                    elif line_count in auc_lines:
+                        auc_results.append(np.array(row[1:]).astype(dtype=float))
+                    elif line_count in f1_lines:
+                        f1_results.append(np.array(row[1:]).astype(dtype=float))
+                acc_results = np.array(acc_results)
+                auc_results = np.array(auc_results)
+                f1_results = np.array(f1_results)
+                ACC[key] = np.mean(acc_results, axis=0)
+                AUC[key] = np.mean(auc_results, axis=0)
+                F1[key] = np.mean(f1_results, axis=0)
+            ax_acc[n_ch].plot(X, ACC[key], 's-', color=COLOR[key])
+            ax_auc[n_ch].plot(X, AUC[key], 's-', color=COLOR[key])
+            ax_f1[n_ch].plot(X, F1[key], 's-', color=COLOR[key])
+            plt.xticks(fontname='Times New Roman', size=18)
+            # ax_acc.yaxis.grid(True)
+            # ax_auc.yaxis.grid(True)
+            # ax_f1.yaxis.grid(True)
+        if n_ch == 8:
+            ax_auc[n_ch].legend(FILE_NAMES.keys(), loc='upper center', bbox_to_anchor=(0.5, -1.4), prop=font, ncol=4)
+
+        n_1 = n_1 + 1
+    plt.tight_layout()
+    plt.show()
+    print('a')
 
 
 def _signal_plot(SBJ_PLOT, CH=0):
@@ -486,6 +675,8 @@ def _signal_plot(SBJ_PLOT, CH=0):
         '64': 'peachpuff',  # nt vstim
         '128': 'chocolate'  # t vstim
     }
+    font_title = font_manager.FontProperties(family='Times New Roman', weight='bold', style='normal', size=18)
+    font = font_manager.FontProperties(family='Times New Roman', style='normal', size=14)
     for sbj in SBJ_PLOT:
         TRAIN = []
         ax = fig.add_subplot(int('1' + str(len(SBJ_PLOT)) + str(k)))
@@ -494,51 +685,233 @@ def _signal_plot(SBJ_PLOT, CH=0):
             if (file_name.split('_')[0] == sbj) and (file_name.endswith('.set')):
                 TRAIN.append(file_name)
         LEGENDS = []
-        # X_train, Y_train, _, _, _, events_train, _, _ = util_preprocessing._build_dataset_eeglab(
-        #     FOLDER=FOLDER_DATA, TRAIN=TRAIN, TEST=[], CLASS=CLASS,
-        #     ch_last=False, trainset_ave=1, testset_ave=1, for_plot=False)
         X, Y, events = util_preprocessing._build_dataset_eeglab_plot(FOLDER=FOLDER_DATA, TRAIN=TRAIN, TEST=[], CLASS=CLASS)
         for key in CLASS.keys():
             signal_mean = np.mean(X[np.where(events == int(key))[0], :, :, :], axis=0)
             if key == '8':
-                ax.plot(time_axis, signal_mean[CH, :], linewidth=5, color=CLASS_COLORS[key], zorder=1)
+                ax.plot(time_axis, signal_mean[CH, :], linewidth=5, color=CLASS_COLORS[key])
             else:
                 ax.plot(time_axis, signal_mean[CH, :], linewidth=3, color=CLASS_COLORS[key])
-            ax.set_xlabel('Time/s')
-            ax.set_ylabel('Amplitude/muV')
+            ax.set_xlabel('Time/s', font='Times New Roman', size=16)
+            ax.set_ylabel('Amplitude/muV', font='Times New Roman', size=16)
             LEGENDS.append(CLASS_NAME[key])
         ax.axvline(x=0, color='black')
         ax.axvline(x=0.2, color='grey', linestyle='--')
         ax.axvline(x=0.8, color='grey', linestyle='--')
         # ax.set_ylim([-10, 25])
-        ax.legend(LEGENDS, loc='lower right')
+        ax.legend(LEGENDS, loc='lower right', prop=font)
         ax.grid(axis='y')
-        ax.set_title('Subject ' + str(sbj))
+        ax.set_title('Subject ' + str(sbj), fontname='Times New Roman', size=16)
+
+    plt.show()
+
+
+def _signal_plot_2(SBJ_PLOT, CH=0, multiNT=False):
+    files = os.listdir(FOLDER_DATA)
+    fig = plt.figure()
+    k = 1
+    time_axis = np.linspace(-0.2, 1.0, num=int(1.2*125), endpoint=False)
+    CLASS_NAME = {
+        '4': 'Electric-1',  # nt estim
+        '8': 'Electric-2-Target',  # t estim
+        '16': 'Audio-1',  # nt astim
+        '32': 'Audio-2',  # t astim
+        '64': 'Vibration-1',  # nt vstim
+        '128': 'Vibration-2'  # t vstim
+    }
+    CLASS_COLORS = {
+        '4': ['tan', 'oldlace'],  # nt estim
+        '8': ['darkred', 'lightcoral'],  # t estim
+        '16': ['darkgreen', 'mediumseagreen'],  # nt astim
+        '32': ['darkcyan', 'lightblue'],  # t astim
+        '64': ['navy', 'lightsteelblue'],  # nt vstim
+        '128': ['darkviolet', 'plum']  # t vstim
+    }
+    X_all = None
+    events_all = None
+    X_t = None
+    X_nt = {
+        '4': None,
+        '16': None,
+        '32': None,
+        '64': None,
+        '128': None,
+        'nt': None
+    }
+    font_title = font_manager.FontProperties(family='Times New Roman', weight='bold', style='normal', size=18)
+    font = font_manager.FontProperties(family='Times New Roman', style='normal', size=14)
+    for sbj in SBJ_PLOT:
+        TRAIN = []
+        for file_name in files:
+            if (file_name.split('_')[0] == sbj) and (file_name.endswith('.set')):
+                TRAIN.append(file_name)
+        X, Y, events = util_preprocessing._build_dataset_eeglab_plot(FOLDER=FOLDER_DATA, TRAIN=TRAIN, TEST=[], CLASS=CLASS)
+        if X_all is None:
+            X_all = X
+            events_all = events
+        else:
+            X_all = np.concatenate([X_all, X], axis=0)
+            events_all = np.concatenate([events_all, events])
+    for key in CLASS.keys():
+        ind = np.where(events_all == int(key))[0]
+        if key == '8':
+            X_t = X_all[ind, :, :, :]
+        else:
+            if multiNT is True:
+                if X_nt[key] is None:
+                    X_nt[key] = X_all[ind, :, :, :]
+                else:
+                    X_nt[key] = np.concatenate([X_nt[key], X_all[ind, :, :, :]], axis=0)
+            else:
+                if X_nt['nt'] is None:
+                    X_nt['nt'] = X_all[ind, :, :, :]
+                else:
+                    X_nt['nt'] = np.concatenate([X_nt['nt'], X_all[ind, :, :, :]], axis=0)
+    T_mean = np.squeeze(np.mean(X_t, axis=0)[CH, :, :])
+    T_std = np.squeeze(np.std(X_t, axis=0)[CH, :, :])
+    if multiNT is True:
+        NT_mean = {
+            '4': None,
+            '16': None,
+            '32': None,
+            '64': None,
+            '128': None,
+        }
+        NT_std = {
+            '4': None,
+            '16': None,
+            '32': None,
+            '64': None,
+            '128': None,
+        }
+        for key in NT_mean.keys():
+            NT_mean[key] = np.squeeze(np.mean(X_nt[key], axis=0)[CH, :, :])
+            NT_std[key] = np.squeeze(np.std(X_nt[key], axis=0)[CH, :, :])
+    else:
+        NT_mean = np.squeeze(np.mean(X_nt['nt'], axis=0)[CH, :, :])
+        NT_std = np.squeeze(np.std(X_nt['nt'], axis=0)[CH, :, :])
+    ax = fig.add_subplot(111)
+    if multiNT is False:
+        ax.plot(time_axis, NT_mean, color='darkcyan')
+        ax.fill_between(time_axis,
+                        NT_mean - NT_std,
+                        NT_mean + NT_std,
+                        color='lightblue', alpha=0.75)
+        LEGENDS = ['Non-target Ave.', 'Non-target STD', 'Target Ave.', 'Target STD']
+    else:
+        LEGENDS = []
+        for key in NT_mean.keys():
+            ax.plot(time_axis, NT_mean[key], color=CLASS_COLORS[key][0])
+            ax.fill_between(time_axis,
+                            NT_mean[key] - NT_std[key],
+                            NT_mean[key] + NT_std[key],
+                            color=CLASS_COLORS[key][1], alpha=0.2)
+            LEGENDS.append(CLASS_NAME[key] + 'AVE')
+            LEGENDS.append(CLASS_NAME[key] + 'STD')
+        LEGENDS.append(CLASS_NAME['8'] + 'AVE')
+        LEGENDS.append(CLASS_NAME['8'] + 'STD')
+    ax.plot(time_axis, T_mean, color='darkred')
+    ax.fill_between(time_axis,
+                        T_mean - T_std,
+                        T_mean + T_std,
+                        color='lightcoral', alpha=0.4)
+    # ax.set_xlabel('Time/s', size=16, font='Times New Roman')
+    ax.set_xlabel(' ', size=16, font='Times New Roman')
+    # ax.set_ylabel('Amplitude/muV', size=16, font='Times New Roman')
+    ax.set_ylabel(' ', size=16, font='Times New Roman')
+    ax.tick_params(labelbottom=True, labeltop=False, labelleft=False, labelright=False)
+    plt.xticks(fontname='Times New Roman', size=14)
+    plt.yticks(fontname='Times New Roman', size=14)
+    ax.axvline(x=0, color='black')
+    ax.axvline(x=0.2, color='grey', linestyle='--')
+    ax.axvline(x=0.8, color='grey', linestyle='--')
+    ax.set_ylim([-30, 50])
+    ax.set_xlim([-0.2, 1.0])
+    # ax.legend(LEGENDS, loc='upper left', prop=font)
+    TITLE = 'SBJ09'
+    ax.set_title(TITLE, size=18, font='Times New Roman')
+    ax.grid(axis='y')
     plt.show()
 
 
 def _write_csv():
-    result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_0ch_epoch_1/')
-    result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_0ch_epoch_2/')
-    result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_0ch_epoch_3/')
-    result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_0ch_epoch_4/')
-    result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_0ch_epoch_5/')
-    result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_0ch_epoch_6/')
-    # result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_custom_0ch_epoch_1/')
-    # result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_custom_0ch_epoch_2/')
-    # result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_custom_0ch_epoch_3/')
-    # result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_custom_0ch_epoch_4/')
-    # result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_custom_0ch_epoch_5/')
-    # result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_custom_0ch_epoch_6/')
-    # result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_0ch_epoch_1/')
-    # result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_0ch_epoch_2/')
-    # result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_0ch_epoch_3/')
-    # result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_0ch_epoch_4/')
-    # result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_0ch_epoch_5/')
-    # result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_effnetv2_0ch_epoch_6/')
-    with open('results_noICA_eegnet_0ch.csv', 'w', encoding='UTF8', newline='') as f:
-    # with open('results_noICA_custom_0ch.csv', 'w', encoding='UTF8', newline='') as f:
-    # with open('results_noICA_effnetv2_0ch.csv', 'w', encoding='UTF8', newline='') as f:
+    # result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_csplda_0ch_epoch_1/')
+    # result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_csplda_0ch_epoch_2/')
+    # result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_csplda_0ch_epoch_3/')
+    # result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_csplda_0ch_epoch_4/')
+    # result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_csplda_0ch_epoch_5/')
+    # result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_csplda_0ch_epoch_6/')
+    # result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_csplda_3ch_epoch_1/')
+    # result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_csplda_3ch_epoch_2/')
+    # result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_csplda_3ch_epoch_3/')
+    # result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_csplda_3ch_epoch_4/')
+    # result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_csplda_3ch_epoch_5/')
+    # result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_csplda_3ch_epoch_6/')
+    # result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_csplda_8ch_epoch_1/')
+    # result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_csplda_8ch_epoch_2/')
+    # result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_csplda_8ch_epoch_3/')
+    # result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_csplda_8ch_epoch_4/')
+    # result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_csplda_8ch_epoch_5/')
+    # result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_csplda_8ch_epoch_6/')
+    # result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_eegnet_0ch_epoch_1/')
+    # result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_eegnet_0ch_epoch_2/')
+    # result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_eegnet_0ch_epoch_3/')
+    # result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_eegnet_0ch_epoch_4/')
+    # result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_eegnet_0ch_epoch_5/')
+    # result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_eegnet_0ch_epoch_6/')
+    # result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_eegnet_3ch_epoch_1/')
+    # result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_eegnet_3ch_epoch_2/')
+    # result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_eegnet_3ch_epoch_3/')
+    # result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_eegnet_3ch_epoch_4/')
+    # result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_eegnet_3ch_epoch_5/')
+    # result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_eegnet_3ch_epoch_6/')
+    # result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_eegnet_8ch_epoch_1/')
+    # result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_eegnet_8ch_epoch_2/')
+    # result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_eegnet_8ch_epoch_3/')
+    # result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_eegnet_8ch_epoch_4/')
+    # result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_eegnet_8ch_epoch_5/')
+    # result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_eegnet_8ch_epoch_6/')
+    # result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_0ch_epoch_1/')
+    # result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_0ch_epoch_2/')
+    # result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_0ch_epoch_3/')
+    # result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_0ch_epoch_4/')
+    # result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_0ch_epoch_5/')
+    # result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_0ch_epoch_6/')
+    # result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_3ch_epoch_1/')
+    # result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_3ch_epoch_2/')
+    # result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_3ch_epoch_3/')
+    # result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_3ch_epoch_4/')
+    # result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_3ch_epoch_5/')
+    # result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_3ch_epoch_6/')
+    result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_8ch_epoch_1/')
+    result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_8ch_epoch_2/')
+    result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_8ch_epoch_3/')
+    result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_8ch_epoch_4/')
+    result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_8ch_epoch_5/')
+    result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_8ch_epoch_6/')
+    # result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_0ch_epoch_1/')
+    # result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_0ch_epoch_2/')
+    # result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_0ch_epoch_3/')
+    # result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_0ch_epoch_4/')
+    # result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_0ch_epoch_5/')
+    # result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_0ch_epoch_6/')
+    # result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_3ch_epoch_1/')
+    # result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_3ch_epoch_2/')
+    # result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_3ch_epoch_3/')
+    # result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_3ch_epoch_4/')
+    # result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_3ch_epoch_5/')
+    # result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_3ch_epoch_6/')
+    # result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_8ch_epoch_1/')
+    # result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_8ch_epoch_2/')
+    # result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_8ch_epoch_3/')
+    # result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_8ch_epoch_4/')
+    # result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_8ch_epoch_5/')
+    # result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_8ch_epoch_6/')
+    # with open('results_noICA_loss_csplda_0ch.csv', 'w', encoding='UTF8', newline='') as f:
+    # with open('results_noICA_loss_eegnet_0ch.csv', 'w', encoding='UTF8', newline='') as f:
+    with open('results_noICA_loss_custom_8ch.csv', 'w', encoding='UTF8', newline='') as f:
+    # with open('results_noICA_loss_custom_8ch.csv', 'w', encoding='UTF8', newline='') as f:
+    # with open('results_noICA_loss_effnetv2_0ch.csv', 'w', encoding='UTF8', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['Epochs', '1', '2', '3', '4', '5', '6'])
         for i in range(8):
@@ -562,18 +935,27 @@ def _write_csv():
     return
 
 
-
 # _epoch_plot(SBJ_PLOT=['01', '02', '03', '04', '06', '07', '08', '09'])
 # _epoch_plot_methods(SBJ_PLOT=['01', '02', '03', '04', '06', '07', '08', '09'])
 # _plot_prediction(SBJ_PLOT=['02', '04'])
-# _signal_plot(SBJ_PLOT=['01', '02', '03', '04', '06', '07', '08', '09'], CH=29)
-# _signal_plot(SBJ_PLOT=['01'], CH=29)
+# _signal_plot(SBJ_PLOT=['01', '02', '03', '04', '06', '07', '08', '09'], CH=27)
+# _signal_plot(SBJ_PLOT=['01'], CH=27)
 # result = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_0ch_epoch_1/')
 # _write_csv()
 # with open('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_eegnet_0ch_epoch_1/01_01.json') as json_file:
-with open('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_0ch_epoch_4/01_01.json') as json_file:
-    data = json.load(json_file)
-plt.plot(data['Y_pred'], 'o')
-plt.plot(data['Y_true'], '-')
-plt.show()
-print('a')
+# with open('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_0ch_epoch_4/01_01.json') as json_file:
+#     data = json.load(json_file)
+# plt.plot(data['Y_pred'], 'o')
+# plt.plot(data['Y_true'], '-')
+# plt.show()
+# print('a')
+_acc_plot_2()
+# _signal_plot_2(SBJ_PLOT=['01', '02', '03', '04', '06', '07', '08', '09'], CH=45, multiNT=False)
+# _signal_plot_2(SBJ_PLOT=['09'], CH=45, multiNT=False)
+
+# data_pkg = mne.read_epochs_eeglab(r'D:\Code\PycharmProjects\P300_detect\data\SEP BCI 125 0-20 no ICA\04_01.set')
+# # montage = mne.channels.get_builtin_montages()
+# data_pkg.ch_names
+# data_pkg.set_montage('standard_1005', on_missing='warn')
+#
+# print('a')

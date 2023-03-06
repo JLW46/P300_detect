@@ -202,7 +202,7 @@ def _P300_speller(char):
 
 
 def _build_dataset_eeglab(FOLDER, TRAIN, TEST, CLASS, ch_last=False,
-                          trainset_ave=False, testset_ave=False, ch_select=False):
+                          trainset_ave=False, testset_ave=False, ch_select=False, rep=1):
     files = os.listdir(FOLDER)
     X_train = None
     Y_train = None
@@ -217,7 +217,7 @@ def _build_dataset_eeglab(FOLDER, TRAIN, TEST, CLASS, ch_last=False,
             # X, Y, events = _read_data_eeglab(PATH=PATH, CLASS=CLASS, ch_last=ch_last, norm=True, epochs=3, sampling='random')
             if (file_name in TRAIN) and (file_name not in TEST):
                 X, Y, events = _read_data_eeglab(PATH=PATH, CLASS=CLASS, ch_last=ch_last, norm=True, epochs=trainset_ave,
-                                                 sampling='random', plot=False, ch_select=ch_select)
+                                                 sampling='random', plot=False, ch_select=ch_select, rep=rep)
                 if X_train is None:
                     X_train = X
                     Y_train = Y
@@ -228,7 +228,7 @@ def _build_dataset_eeglab(FOLDER, TRAIN, TEST, CLASS, ch_last=False,
                     events_train = np.concatenate([events_train, events])
             elif file_name in TEST:
                 X, Y, events = _read_data_eeglab(PATH=PATH, CLASS=CLASS, ch_last=ch_last, norm=True, epochs=testset_ave,
-                                                 sampling='consecutive', plot=False, ch_select=ch_select)
+                                                 sampling='consecutive', plot=False, ch_select=ch_select, rep=rep)
                 if X_test is None:
                     X_test = X
                     Y_test = Y
@@ -289,7 +289,7 @@ def _build_dataset_eeglab_plot(FOLDER, TRAIN, TEST, CLASS):
         if file_name in TRAIN or file_name in TEST:
             PATH = os.path.join(FOLDER, file_name)
             X, Y, events = _read_data_eeglab(PATH=PATH, CLASS=CLASS, ch_last=False, norm=True, epochs=1,
-                                             sampling='consecutive', plot=True, ch_select=False)
+                                             sampling='consecutive', plot=True, ch_select=False, rep=1)
             if X_out is None:
                 X_out = X
                 Y_out = Y
@@ -313,19 +313,19 @@ def _get_event(events, event_id):
     return out
 
 
-def _read_data_eeglab(PATH, CLASS, ch_last=False, norm=True, epochs=1, sampling='consecutive', plot=False, ch_select=False):
+def _read_data_eeglab(PATH, CLASS, ch_last=False, norm=True, epochs=1, sampling='consecutive', plot=False, ch_select=False, rep=1):
     data_pkg = mne.read_epochs_eeglab(PATH)
     events = _get_event(data_pkg.events, data_pkg.event_id)
     data = data_pkg._data
-    CH = np.shape(data)[1]
     if ch_select is not False:
         CH = len(ch_select)
+    else:
+        CH = np.shape(data)[1]
     T = np.shape(data)[2]
     # T_re = 175
     # T_re = T
     T_re = 100
     X = []
-    X_norm = []
     Y = []
     events_new = []
     for i in range(np.shape(data)[0]):
@@ -354,7 +354,6 @@ def _read_data_eeglab(PATH, CLASS, ch_last=False, norm=True, epochs=1, sampling=
     Y = np.array(Y)
     X_ave = []
     Y_ave = []
-    rep = 4
     for label in [4, 8, 16, 32, 64, 128]:
         ind = list(np.where(events == label)[0])
         if sampling == 'random':
@@ -379,19 +378,6 @@ def _read_data_eeglab(PATH, CLASS, ch_last=False, norm=True, epochs=1, sampling=
                     X_ave.append(np.mean(X[ind[i:i + epochs]], axis=0))
                 Y_ave.append(CLASS[str(label)])
                 events_new.append(label)
-            # X_ave = np.squeeze(np.array(X_ave))
-            # Y_ave = np.squeeze(np.array(Y_ave))
-            # if len(np.shape(Y_ave)) > 1:
-            #     pos_ind = np.where(Y_ave[:, 1] == 1)[0]
-            # else:
-            #     pos_ind = np.where(Y_ave == 1)[0]
-            # scale = int((np.shape(Y_ave)[0] - len(pos_ind))/len(pos_ind))
-            # if scale > 0:
-            #     for i in range(scale):
-            #         X_ave = np.concatenate([X_ave, X_ave[pos_ind]])
-            #         Y_ave = np.concatenate([Y_ave, Y_ave[pos_ind]])
-    # X = np.array(X_ave)
-    # Y = np.array(Y_ave)
     X_ave = np.array(X_ave)
     Y_ave = np.array(Y_ave)
     if np.shape(Y_ave)[1] > 1:
@@ -404,7 +390,15 @@ def _read_data_eeglab(PATH, CLASS, ch_last=False, norm=True, epochs=1, sampling=
             X_ave = np.concatenate([X_ave, X_ave[pos_ind]])
             Y_ave = np.concatenate([Y_ave, Y_ave[pos_ind]])
     print('total: ' + str(len(Y_ave)) + '. target: ' + str(np.sum(Y_ave)))
-    return X_ave, Y_ave, np.array(events_new)
+    if plot is True:
+        X_out = X
+        Y_out = Y
+        events_out = np.array(events)
+    else:
+        X_out = X_ave
+        Y_out = Y_ave
+        events_out = np.array(events_new)
+    return X_out, Y_out, events_out
 
 
 def _make_average(X, Y, CLASS, events, fold=1, epochs=1, consec=False):
