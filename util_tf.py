@@ -99,8 +99,12 @@ def _mbconv(X, ch_out, kern=(3,3), t=4, reduction=False, SE=0.25, dropout = 0.5)
                             use_bias=use_bias)(X)
     X = keras.layers.BatchNormalization()(X)
     X = keras.layers.ReLU(max_value=6, negative_slope=0.0, threshold=0.0)(X)
-    X = _depth_conv2D(X, n_mult=1, k_size=kern, strides=strides, activation=None, padding='same',
-                      use_bias=False, weight_constraint=None)
+    if reduction:
+        X = _depth_conv2D(X, n_mult=1, k_size=kern, strides=strides, activation=None, padding='same',
+                          use_bias=False, weight_constraint=None)
+    else:
+        X = _depth_conv2D(X, n_mult=1, k_size=kern, strides=strides, activation=None, padding='same',
+                          use_bias=False, weight_constraint=None)
     X = keras.layers.BatchNormalization()(X)
     X = keras.layers.ReLU(max_value=6, negative_slope=0.0, threshold=0.0)(X)
     if SE is not None:
@@ -109,7 +113,7 @@ def _mbconv(X, ch_out, kern=(3,3), t=4, reduction=False, SE=0.25, dropout = 0.5)
         SE_branch = tf.keras.layers.Dense(int(SE_size*SE), kernel_initializer=kernel_initializer,
                            kernel_regularizer=None, activation='relu')(SE_branch)
         SE_branch = tf.keras.layers.Dense(SE_size, kernel_initializer=kernel_initializer,
-                                          kernel_regularizer=None, activation='relu')(SE_branch)
+                                          kernel_regularizer=None, activation='sigmoid')(SE_branch)
         scaler = tf.reshape(SE_branch, shape=[-1, 1, 1, SE_size], name='scaler')
         X = X*scaler
     else:
@@ -133,7 +137,7 @@ def _mbconv(X, ch_out, kern=(3,3), t=4, reduction=False, SE=0.25, dropout = 0.5)
 def _mbconvFused(X, ch_out, kern=(3, 3), t=4, reduction=False, SE=0.25, dropout=0.5):
     use_bias = False
     if reduction:
-        strides = (2, 2)
+        strides = (1, 2)
     else:
         strides = (1, 1)
     ch_in = X.shape[-1]
@@ -154,7 +158,7 @@ def _mbconvFused(X, ch_out, kern=(3, 3), t=4, reduction=False, SE=0.25, dropout=
         SE_branch = tf.keras.layers.Dense(int(SE_size*SE), kernel_initializer=kernel_initializer,
                            kernel_regularizer=None, activation='relu')(SE_branch)
         SE_branch = tf.keras.layers.Dense(SE_size, kernel_initializer=kernel_initializer,
-                                          kernel_regularizer=None, activation='relu')(SE_branch)
+                                          kernel_regularizer=None, activation='sigmoid')(SE_branch)
         scaler = tf.reshape(SE_branch, shape=[-1, 1, 1, SE_size], name='scaler')
         X = X*scaler
     else:
@@ -360,13 +364,13 @@ class CLSToken(keras.layers.Layer):
 
 
 def _vit(in_shape, out_shape): # in_shape=[n_ch, 75, 1]
-    L = 2 # number of TEs
+    L = 1 # number of TEs
     inputs = keras.layers.Input(shape=in_shape)
     n_ch = in_shape[-3]
     win = 5
     n_patch = in_shape[-2]//win
     patch_size = n_ch * win
-    projection_size = 12
+    projection_size = 32
     # Linear projection of flattened patches
     patches = tf.image.extract_patches(
         images=inputs,
@@ -408,7 +412,81 @@ def _vit(in_shape, out_shape): # in_shape=[n_ch, 75, 1]
     representation = keras.layers.Dropout(0.2)(representation)
 
     # MPL head
-    x = keras.layers.Dense(64, activation='gelu')(representation)
+    x = keras.layers.Dense(32, activation='gelu')(representation)
+    x = keras.layers.Dropout(0.5)(x)
+    # Out
+    if out_shape > 1:
+        activation = 'softmax'
+        acc = tf.keras.metrics.CategoricalAccuracy()
+        loss = keras.losses.CategoricalCrossentropy()
+    else:
+        activation = 'sigmoid'
+        acc = tf.keras.metrics.AUC(num_thresholds=200, curve='ROC', summation_method='interpolation')
+        loss = keras.losses.BinaryCrossentropy()
+    out = keras.layers.Dense(out_shape, activation=activation)(x)
+    model = keras.Model(inputs=inputs, outputs=out, name='vit')
+    model.summary()
+    model.compile(optimizer=tfa.optimizers.AdamW(learning_rate=0.0001, weight_decay=0.0001),
+                  loss=loss,
+                  metrics=acc)
+    return model
+
+
+def _vit2(in_shape, out_shape): # in_shape=[n_ch, 75, 1]
+    weight_constraints_1 = keras.constraints.MinMaxNorm(min_value=-1.0, max_value=1.0, rate=1.0, axis=0)
+    L = 2 # number of TEs
+    inputs = keras.layers.Input(shape=in_shape)
+    n_ch = in_shape[-3]
+    win = 5
+    n_patch = in_shape[-2]//win
+    patch_size = n_ch * win
+    projection_size = 16
+    X = keras.layers.AveragePooling2D(pool_size=(1, 3), strides=(1, 3), padding='valid')(inputs)
+
+    # Linear projection of flattened patches
+    patches = tf.image.extract_patches(
+        images=X,
+        sizes=[1, 64, 5, 1],
+        strides=[1, 1, 5, 1],
+        rates=[1, 1, 1, 1],
+        padding="VALID",
+    )
+    n_patch = patches.shape[-2]
+    patch_size = patches.shape[-1]
+    patches = tf.reshape(patches, [-1, n_patch, patch_size])
+    projection = keras.layers.Dense(projection_size)(patches)
+    # CLS token
+    projection = CLSToken(projection_size)(projection)
+    pos = tf.range(start=0, limit=n_patch + 1, delta=1)
+    pos_embed = keras.layers.Embedding(input_dim=n_patch, output_dim=projection_size)(pos)
+    embedded_patches = projection + pos_embed
+    # Transformer encoder
+    for l in range(L):
+        res_1 = embedded_patches
+        x_1 = keras.layers.LayerNormalization(epsilon=1e-6)(embedded_patches)
+        x_2 = keras.layers.MultiHeadAttention(
+            num_heads=2, key_dim=projection_size, dropout=0.2
+        )(x_1, x_1)
+        x_3 = keras.layers.Add()([x_2, res_1])
+        res_2 = x_3
+        x_4 = keras.layers.LayerNormalization(epsilon=1e-6)(x_3)
+        x_5 = keras.layers.Dense(projection_size * 2, activation='gelu')(x_4)
+        x_5 = keras.layers.Dropout(0.2)(x_5)
+        x_6 = keras.layers.Dense(projection_size, activation='gelu')(x_5)
+        x_6 = keras.layers.Dropout(0.2)(x_6)
+        embedded_patches = keras.layers.Add()([x_6, res_2])
+    # ?
+    # representation = keras.layers.LayerNormalization(epsilon=1e-6)(embedded_patches)
+    # representation = keras.layers.Flatten()(representation)
+    # representation = keras.layers.Dropout(0.5)(representation)
+
+    representation = embedded_patches[:, 0, :]
+    representation = keras.layers.LayerNormalization(epsilon=1e-6)(representation)
+    representation = keras.layers.Flatten()(representation)
+    representation = keras.layers.Dropout(0.2)(representation)
+
+    # MPL head
+    x = keras.layers.Dense(32, activation='gelu')(representation)
     x = keras.layers.Dropout(0.5)(x)
     # Out
     if out_shape > 1:
@@ -442,6 +520,50 @@ def _effnetV2(in_shape, out_shape):
     X = _mbconv(X, ch_out=36, kern=(1, 3), t=0.5, reduction=True, SE=0.25, dropout=0.5)
     X = _mbconv(X, ch_out=24, kern=(1, 3), t=0.5, reduction=True, SE=0.25, dropout=0.5)
     X = _mbconv(X, ch_out=12, kern=(1, 3), t=0.5, reduction=True, SE=0.25, dropout=0.5)
+    # X = _conv2D(X, n_ch=12, k_size=(1, 1), strides=(1, 1), activation=None, padding='same', use_bias=False)
+    X = keras.layers.BatchNormalization()(X)
+    # X = keras.layers.GlobalAveragePooling2D()(X)
+    X = keras.layers.Flatten()(X)
+    X = keras.layers.Dropout(rate=0.5)(X)
+    if out_shape > 1:
+        activation = 'softmax'
+        acc = tf.keras.metrics.CategoricalAccuracy()
+        loss = keras.losses.CategoricalCrossentropy()
+    else:
+        activation = 'sigmoid'
+        acc = tf.keras.metrics.AUC(num_thresholds=200, curve='ROC', summation_method='interpolation')
+        loss = keras.losses.BinaryCrossentropy()
+    X = keras.layers.Dense(out_shape, kernel_initializer=kernel_initializer,
+                           kernel_regularizer=None, activation=activation)(X)
+    model = keras.models.Model(input, X, name="efnetV2")
+    model.summary()
+    model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.001),
+                  # loss=keras.losses.MeanSquaredError(),
+                  loss=loss,
+                  metrics=acc)
+    return model
+
+
+def _effnetV2_new(in_shape, out_shape):
+    weight_constraints_1 = keras.constraints.MinMaxNorm(min_value=-1.0, max_value=1.0, rate=1.0, axis=0)
+    kernel_initializer = tf.initializers.GlorotUniform()
+    ch = in_shape[-3]
+    input = keras.layers.Input(shape=in_shape)
+    X = _depth_conv2D(input, 8, [1, int(0.5 * in_shape[1])], [1, 1], activation=None, padding='same', use_bias=False,
+                      weight_constraint=weight_constraints_1)
+    X = keras.layers.BatchNormalization()(X)
+    X = _depth_conv2D(X, 16, [ch, 1], [1, 1], activation=None, padding='valid', use_bias=False,
+                      weight_constraint=weight_constraints_1)
+    # X = _conv2D(X, n_ch=24, k_size=(1, 1), strides=(1, 1), activation=None, padding='same', use_bias=False)
+    X = keras.layers.BatchNormalization()(X)
+    X = _mbconv(X, ch_out=16, kern=(ch, 3), t=0.5, reduction=True, SE=0.5, dropout=0.5) #38
+    X = _mbconv(X, ch_out=16, kern=(ch, 3), t=0.5, reduction=False, SE=0.5, dropout=0.5)
+    X = _mbconv(X, ch_out=32, kern=(ch, 3), t=0.5, reduction=True, SE=0.5, dropout=0.5) #19
+    X = _depth_conv2D(X, 1, [ch, 1], [1, 1], activation=None, padding='valid', use_bias=False,
+                      weight_constraint=weight_constraints_1)
+    X = _mbconv(X, ch_out=32, kern=(1, 3), t=0.5, reduction=False, SE=0.25, dropout=0.5)
+    X = _mbconv(X, ch_out=16, kern=(1, 3), t=0.5, reduction=True, SE=0.25, dropout=0.5) #10
+    X = _mbconv(X, ch_out=16, kern=(1, 3), t=0.5, reduction=True, SE=0.25, dropout=0.5) #5
     # X = _conv2D(X, n_ch=12, k_size=(1, 1), strides=(1, 1), activation=None, padding='same', use_bias=False)
     X = keras.layers.BatchNormalization()(X)
     # X = keras.layers.GlobalAveragePooling2D()(X)

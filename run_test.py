@@ -295,8 +295,8 @@ def _run_cnn_test2(epochs=1):
         '128': [0]  # t vstim
     }
     # CH_SELECT = [9, 27, 45, 59, 43, 47, 50, 56]
-    # CH_SELECT = [9, 27, 45]
-    CH_SELECT = False
+    CH_SELECT = [9, 27, 45]
+    # CH_SELECT = False
     for sbj in ['01', '02', '03', '04', '06', '07', '08', '09']:
     # for sbj in ['04', '06', '07', '08', '09']:
         # create TRAIN
@@ -311,7 +311,7 @@ def _run_cnn_test2(epochs=1):
             X_train, Y_train, X_test, Y_test, class_weights, events_train, \
             sample_weights_train, sample_weights_test = util_preprocessing._build_dataset_eeglab(FOLDER=FOLDER, CLASS=CLASS,
                                                                                                  TRAIN=TRAIN, TEST=TEST,
-                                                                                                 ch_last=False,
+                                                                                                 ch_last=True,
                                                                                                  trainset_ave=epochs,
                                                                                                  testset_ave=epochs,
                                                                                                  ch_select=CH_SELECT,
@@ -327,15 +327,15 @@ def _run_cnn_test2(epochs=1):
             callback_1 = util_tf.IterTracker(X_test=X_test, Y_test=Y_test)
             # model = util_tf._eegnet(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
             # model = util_tf._custom(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
-            # model = util_tf._effnetV2(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
-            model = util_tf._vit(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
-            model.fit(x=X_train, y=Y_train, epochs=200, batch_size=16, callbacks=[callback_1])
+            model = util_tf._effnetV2(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
+            # model = util_tf._vit(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
+            model.fit(x=X_train, y=Y_train, epochs=200, batch_size=32, callbacks=[callback_1])
             print('---------++++++++++++______________')
             print(callback_1.best_scores)
             print('DONE!')
             # SAVE_PATH = r'results_noICA_loss_eegnet_8ch_epoch_' + str(epochs) + '/'
             # SAVE_PATH = r'results_noICA_loss_custom_8ch_epoch_' + str(epochs) + '/'
-            # SAVE_PATH = r'results_noICA_effnetv2_epoch_1/'
+            # SAVE_PATH = r'results_noICA_effnetv2_0ch_epoch_' + str(epochs) + '/'
             SAVE_PATH = r'results_noICA_loss_vit_0ch_epoch_' + str(epochs) + '/'
             if os.path.exists(SAVE_PATH):
                 pass

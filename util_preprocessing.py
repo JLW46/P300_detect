@@ -228,7 +228,7 @@ def _build_dataset_eeglab(FOLDER, TRAIN, TEST, CLASS, ch_last=False,
                     events_train = np.concatenate([events_train, events])
             elif file_name in TEST:
                 X, Y, events = _read_data_eeglab(PATH=PATH, CLASS=CLASS, ch_last=ch_last, norm=True, epochs=testset_ave,
-                                                 sampling='consecutive', plot=False, ch_select=ch_select, rep=rep)
+                                                 sampling='consecutive', plot=False, ch_select=ch_select, rep=1)
                 if X_test is None:
                     X_test = X
                     Y_test = Y
@@ -354,28 +354,30 @@ def _read_data_eeglab(PATH, CLASS, ch_last=False, norm=True, epochs=1, sampling=
     Y = np.array(Y)
     X_ave = []
     Y_ave = []
-    for label in [4, 8, 16, 32, 64, 128]:
-        ind = list(np.where(events == label)[0])
-        if sampling == 'random':
-            if label == 8:
-                num_sampling = 8*rep*len(ind)
-            else:
-                num_sampling = rep*len(ind)
-            for i in range(num_sampling):
-                # for k in range(epochs):
-                #     picked_ind = random.sample(ind, k + 1)
-                #     X_ave.append(np.mean(X[picked_ind], axis=0))
-                #     Y_ave.append(CLASS[str(label)])
-                picked_ind = random.sample(ind, epochs)
-                X_ave.append(np.mean(X[picked_ind], axis=0))
-                Y_ave.append(CLASS[str(label)])
-                events_new.append(label)
-        elif sampling == 'consecutive':
-            for i in range(len(ind) - epochs):
-                if epochs == 1:
-                    X_ave.append(X[ind[i]])
-                else:
-                    X_ave.append(np.mean(X[ind[i:i + epochs]], axis=0))
+    for label in [4, 16, 32, 64, 128, 8]:
+        inds = list(np.where(events == label)[0])
+        for _ in range(rep):
+            for i in range(len(inds)):
+                if sampling == 'random':
+                    if epochs > 1:
+                        inds_popped = inds.copy()
+                        inds_popped.remove(inds[i])
+                        rand_ind = random.sample(inds_popped, epochs - 1)
+                        rand_ind.append(inds[i])
+                        X_ave.append(np.mean(X[rand_ind], axis=0))
+                    else:
+                        picked_ind = inds[i]
+                        X_ave.append(X[picked_ind])
+                elif sampling == 'consecutive':
+                    if epochs > 1:
+                        if i + epochs > len(inds):
+                            continue
+                        else:
+                            picked_ind = inds[i:i + epochs]
+                            X_ave.append(np.mean(X[picked_ind], axis=0))
+                    else:
+                        picked_ind = inds[i]
+                        X_ave.append(X[picked_ind])
                 Y_ave.append(CLASS[str(label)])
                 events_new.append(label)
     X_ave = np.array(X_ave)

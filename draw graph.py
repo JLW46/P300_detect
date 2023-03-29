@@ -561,15 +561,17 @@ def _acc_plot_2():
         'CUSTOM': 'darkred'
     }
     COLOR = {
-        'LDA': 'darkcyan',
-        'EEGNET': 'mediumseagreen',
+        'LDA': 'lightcoral',
+        'EEGNET': 'darkcyan',
         'EFFNET': 'royalblue',
+        'VIT': 'mediumpurple',
         'CUSTOM': 'darkred'
     }
     FILE_NAMES = {
         'LDA': 'D:/Code/PycharmProjects/P300_detect/results_noICA_loss_csplda_',
         'EEGNET': 'D:/Code/PycharmProjects/P300_detect/results_noICA_loss_eegnet_',
         'EFFNET': 'D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_',
+        'VIT': 'D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_',
         'CUSTOM': 'D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_'
     }
     TITLES = {
@@ -646,7 +648,7 @@ def _acc_plot_2():
             # ax_auc.yaxis.grid(True)
             # ax_f1.yaxis.grid(True)
         if n_ch == 8:
-            ax_auc[n_ch].legend(FILE_NAMES.keys(), loc='upper center', bbox_to_anchor=(0.5, -1.4), prop=font, ncol=4)
+            ax_auc[n_ch].legend(FILE_NAMES.keys(), loc='upper center', bbox_to_anchor=(0.5, -1.4), prop=font, ncol=5)
 
         n_1 = n_1 + 1
     plt.tight_layout()
@@ -883,12 +885,30 @@ def _write_csv():
     # result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_3ch_epoch_4/')
     # result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_3ch_epoch_5/')
     # result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_3ch_epoch_6/')
-    result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_8ch_epoch_1/')
-    result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_8ch_epoch_2/')
-    result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_8ch_epoch_3/')
-    result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_8ch_epoch_4/')
-    result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_8ch_epoch_5/')
-    result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_8ch_epoch_6/')
+    # result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_8ch_epoch_1/')
+    # result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_8ch_epoch_2/')
+    # result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_8ch_epoch_3/')
+    # result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_8ch_epoch_4/')
+    # result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_8ch_epoch_5/')
+    # result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_8ch_epoch_6/')
+    # result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_0ch_epoch_1/')
+    # result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_0ch_epoch_2/')
+    # result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_0ch_epoch_3/')
+    # result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_0ch_epoch_4/')
+    # result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_0ch_epoch_5/')
+    # result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_0ch_epoch_6/')
+    # result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_3ch_epoch_1/')
+    # result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_3ch_epoch_2/')
+    # result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_3ch_epoch_3/')
+    # result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_3ch_epoch_4/')
+    # result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_3ch_epoch_5/')
+    # result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_3ch_epoch_6/')
+    result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_8ch_epoch_1/')
+    result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_8ch_epoch_2/')
+    result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_8ch_epoch_3/')
+    result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_8ch_epoch_4/')
+    result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_8ch_epoch_5/')
+    result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_8ch_epoch_6/')
     # result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_0ch_epoch_1/')
     # result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_0ch_epoch_2/')
     # result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_0ch_epoch_3/')
@@ -909,7 +929,7 @@ def _write_csv():
     # result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_8ch_epoch_6/')
     # with open('results_noICA_loss_csplda_0ch.csv', 'w', encoding='UTF8', newline='') as f:
     # with open('results_noICA_loss_eegnet_0ch.csv', 'w', encoding='UTF8', newline='') as f:
-    with open('results_noICA_loss_custom_8ch.csv', 'w', encoding='UTF8', newline='') as f:
+    with open('results_noICA_loss_vit_8ch.csv', 'w', encoding='UTF8', newline='') as f:
     # with open('results_noICA_loss_custom_8ch.csv', 'w', encoding='UTF8', newline='') as f:
     # with open('results_noICA_loss_effnetv2_0ch.csv', 'w', encoding='UTF8', newline='') as f:
         writer = csv.writer(f)
