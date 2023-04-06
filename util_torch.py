@@ -46,8 +46,6 @@ class EegData(torch.utils.data.Dataset):
     def __init__(self, raw_x, raw_y):
         """
         raw: raw eeg samples in numpy [n_batch, c, ch_eeg, time]
-
-        :param raw:
         """
         self.raw_x = raw_x
         self.raw_y = raw_y

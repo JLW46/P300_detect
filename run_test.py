@@ -9,6 +9,7 @@ import sklearn.metrics
 
 import util_preprocessing
 import util_tf
+import util_torch
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.model_selection import ShuffleSplit, cross_val_score
 from mne import Epochs, pick_types, events_from_annotations
@@ -322,6 +323,101 @@ def _run_cnn_test2(epochs=1):
             print(np.shape(Y_test))
             print(np.sum(Y_train, axis=0))
             print(np.sum(Y_test, axis=0))
+
+            keras.backend.clear_session()
+            callback_1 = util_tf.IterTracker(X_test=X_test, Y_test=Y_test)
+            # model = util_tf._eegnet(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
+            # model = util_tf._custom(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
+            model = util_tf._effnetV2(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
+            # model = util_tf._vit(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
+            model.fit(x=X_train, y=Y_train, epochs=200, batch_size=32, callbacks=[callback_1])
+            print('---------++++++++++++______________')
+            print(callback_1.best_scores)
+            print('DONE!')
+            # SAVE_PATH = r'results_noICA_loss_eegnet_8ch_epoch_' + str(epochs) + '/'
+            # SAVE_PATH = r'results_noICA_loss_custom_8ch_epoch_' + str(epochs) + '/'
+            # SAVE_PATH = r'results_noICA_effnetv2_0ch_epoch_' + str(epochs) + '/'
+            SAVE_PATH = r'results_noICA_loss_vit_0ch_epoch_' + str(epochs) + '/'
+            if os.path.exists(SAVE_PATH):
+                pass
+            else:
+                os.makedirs(SAVE_PATH)
+            FILE_NAME = SAVE_PATH + TEST[0].split('.')[0] + '.json'
+            if os.path.isfile(FILE_NAME):
+                with open(FILE_NAME) as json_file:
+                    data = json.load(json_file)
+                    old_loss = data['loss']
+                if callback_1.best_scores['loss'] < old_loss:
+                    with open(FILE_NAME, "w") as json_file:
+                        json.dump(callback_1.best_scores, json_file)
+                    model.set_weights(callback_1.best_weights)
+                    # model.save(SAVE_PATH + TEST[0].split('.')[0] + '_iter_' + str(callback_1.best_scores['epoch']))
+            else:
+                with open(FILE_NAME, "w") as json_file:
+                    json.dump(callback_1.best_scores, json_file)
+                model.set_weights(callback_1.best_weights)
+                # model.save(SAVE_PATH + TEST[0].split('.')[0] + '_iter_' + str(callback_1.best_scores['epoch']))
+            # if os.path.isfile(FILE_NAME):
+            #     with open(FILE_NAME) as json_file:
+            #         data = json.load(json_file)
+            #         old_auc = data['auc']
+            #     if callback_1.best_scores['auc'] > old_auc:
+            #         with open(FILE_NAME, "w") as json_file:
+            #             json.dump(callback_1.best_scores, json_file)
+            #         model.set_weights(callback_1.best_weights)
+            #         model.save(SAVE_PATH + TEST[0].split('.')[0] + '_iter_' + str(callback_1.best_scores['epoch']))
+            # else:
+            #     with open(FILE_NAME, "w") as json_file:
+            #         json.dump(callback_1.best_scores, json_file)
+            #     model.set_weights(callback_1.best_weights)
+            #     model.save(SAVE_PATH + TEST[0].split('.')[0] + '_iter_' + str(callback_1.best_scores['epoch']))
+
+    return
+
+def _run_cnn_torch(epochs=1):
+    # out_len = 2, CategoricalCrossEntropy
+    CLASS = {
+        '4': [0],  # nt estim
+        '8': [1],  # t estim
+        '16': [0],  # nt astim
+        '32': [0],  # t astim
+        '64': [0],  # nt vstim
+        '128': [0]  # t vstim
+    }
+    # CH_SELECT = [9, 27, 45, 59, 43, 47, 50, 56]
+    # CH_SELECT = [9, 27, 45]
+    CH_SELECT = False
+    for sbj in ['01', '02', '03', '04', '06', '07', '08', '09']:
+    # for sbj in ['04', '06', '07', '08', '09']:
+        # create TRAIN
+        TRAIN = []
+        for set in ['_01', '_02', '_03', '_04', '_05', '_06']:
+            TRAIN.append(sbj + set + '.set')
+        # run
+        for item in TRAIN:
+        # if True:
+        #     TEST = ['07_01.set']
+            TEST = [item]
+            X_train, Y_train, X_test, Y_test, class_weights, events_train, \
+            sample_weights_train, sample_weights_test = util_preprocessing._build_dataset_eeglab(FOLDER=FOLDER, CLASS=CLASS,
+                                                                                                 TRAIN=TRAIN, TEST=TEST,
+                                                                                                 ch_last=True,
+                                                                                                 trainset_ave=epochs,
+                                                                                                 testset_ave=epochs,
+                                                                                                 ch_select=CH_SELECT,
+                                                                                                 rep=4)
+            print(np.shape(X_train))
+            print(np.shape(Y_train))
+            print(np.shape(X_test))
+            print(np.shape(Y_test))
+            print(np.sum(Y_train, axis=0))
+            print(np.sum(Y_test, axis=0))
+
+            model = util_torch.EEGNET(eeg_ch=)
+
+
+
+
 
             keras.backend.clear_session()
             callback_1 = util_tf.IterTracker(X_test=X_test, Y_test=Y_test)
