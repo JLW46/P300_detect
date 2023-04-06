@@ -354,7 +354,8 @@ def _read_data_eeglab(PATH, CLASS, ch_last=False, norm=True, epochs=1, sampling=
     Y = np.array(Y)
     X_ave = []
     Y_ave = []
-    for label in [4, 16, 32, 64, 128, 8]:
+    # for label in [4, 16, 32, 64, 128, 8]:
+    for label in [4, 8, 16, 20, 24, 32, 36, 40, 64, 68, 72, 80, 84, 88, 96, 100, 104, 128, 132, 136, 144, 148, 152, 160, 164, 168]:
         inds = list(np.where(events == label)[0])
         for _ in range(rep):
             for i in range(len(inds)):

@@ -295,8 +295,8 @@ def _run_cnn_test2(epochs=1):
         '128': [0]  # t vstim
     }
     # CH_SELECT = [9, 27, 45, 59, 43, 47, 50, 56]
-    CH_SELECT = [9, 27, 45]
-    # CH_SELECT = False
+    # CH_SELECT = [9, 27, 45]
+    CH_SELECT = False
     for sbj in ['01', '02', '03', '04', '06', '07', '08', '09']:
     # for sbj in ['04', '06', '07', '08', '09']:
         # create TRAIN

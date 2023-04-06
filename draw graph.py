@@ -16,16 +16,46 @@ FOLDER_3 = r'D:/Code/PycharmProjects/P300_detect/results_noICA_epoch_3'
 # FOLDER_1 = r'D:/Code/PycharmProjects/P300_detect/results_ICA_epoch_1'
 # FOLDER_2 = r'D:/Code/PycharmProjects/P300_detect/results_ICA_epoch_2'
 # FOLDER_3 = r'D:/Code/PycharmProjects/P300_detect/results_ICA_epoch_3'
-FOLDER_DATA = r'D:\Code\PycharmProjects\P300_detect\data\SEP BCI 125 0-20 no ICA'
+# FOLDER_DATA = r'D:\Code\PycharmProjects\P300_detect\data\SEP BCI 125 0-20 no ICA'
 # FOLDER_DATA = r'D:\Code\PycharmProjects\P300_detect\data\SEP BCI 125 0-20 ICA'
+FOLDER_DATA = r'D:\Code\PycharmProjects\P300_detect\data\SEP BCI 125 0-20 no ICA 2'
+
+# CLASS = {
+#         '4': [0], # nt estim
+#         '8': [1], # t estim
+#         '16': [0], # nt astim
+#         '32': [0], # t astim
+#         '64': [0], # nt vstim
+#         '128': [0] # t vstim
+#     }
 
 CLASS = {
         '4': [0], # nt estim
         '8': [1], # t estim
         '16': [0], # nt astim
-        '32': [0], # t astim
+        '32': [1], # t astim
         '64': [0], # nt vstim
-        '128': [0] # t vstim
+        '128': [1], # t vstim
+        '20': [0],
+        '24': [0],
+        '36': [0],
+        '40': [0],
+        '68': [0],
+        '72': [0],
+        '80': [0],
+        '84': [0],
+        '88': [0],
+        '96': [0],
+        '100': [0],
+        '104': [0],
+        '132': [0],
+        '136': [0],
+        '144': [0],
+        '148': [0],
+        '152': [0],
+        '160': [0],
+        '164': [0],
+        '168': [0],
     }
 def _read_auc(FOLDER):
     files = os.listdir(FOLDER)
@@ -568,11 +598,11 @@ def _acc_plot_2():
         'CUSTOM': 'darkred'
     }
     FILE_NAMES = {
-        'LDA': 'D:/Code/PycharmProjects/P300_detect/results_noICA_loss_csplda_',
-        'EEGNET': 'D:/Code/PycharmProjects/P300_detect/results_noICA_loss_eegnet_',
-        'EFFNET': 'D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_',
-        'VIT': 'D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_',
-        'CUSTOM': 'D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_'
+        'LDA': 'D:/Code/PycharmProjects/P300_detect/results/results_noICA_loss_csplda_',
+        'EEGNET': 'D:/Code/PycharmProjects/P300_detect/results/results_noICA_loss_eegnet_',
+        'EFFNET': 'D:/Code/PycharmProjects/P300_detect/results/results_noICA_loss_effnetv2_',
+        'VIT': 'D:/Code/PycharmProjects/P300_detect/results/results_noICA_loss_vit_',
+        'CUSTOM': 'D:/Code/PycharmProjects/P300_detect/results/results_noICA_loss_custom_'
     }
     TITLES = {
         3: '3 CH',
@@ -740,6 +770,7 @@ def _signal_plot_2(SBJ_PLOT, CH=0, multiNT=False):
         '128': None,
         'nt': None
     }
+    X_noise = None
     font_title = font_manager.FontProperties(family='Times New Roman', weight='bold', style='normal', size=18)
     font = font_manager.FontProperties(family='Times New Roman', style='normal', size=14)
     for sbj in SBJ_PLOT:
@@ -756,7 +787,7 @@ def _signal_plot_2(SBJ_PLOT, CH=0, multiNT=False):
             events_all = np.concatenate([events_all, events])
     for key in CLASS.keys():
         ind = np.where(events_all == int(key))[0]
-        if key == '8':
+        if key in ['8']:
             X_t = X_all[ind, :, :, :]
         else:
             if multiNT is True:
@@ -764,11 +795,18 @@ def _signal_plot_2(SBJ_PLOT, CH=0, multiNT=False):
                     X_nt[key] = X_all[ind, :, :, :]
                 else:
                     X_nt[key] = np.concatenate([X_nt[key], X_all[ind, :, :, :]], axis=0)
-            else:
+            # else:
+            elif key in ['4']:
                 if X_nt['nt'] is None:
                     X_nt['nt'] = X_all[ind, :, :, :]
                 else:
                     X_nt['nt'] = np.concatenate([X_nt['nt'], X_all[ind, :, :, :]], axis=0)
+            elif key not in ['16', '32', '64', '128']:
+                if X_noise is None:
+                    X_noise = X_all[ind, :, :, :]
+                else:
+                    X_noise = np.concatenate([X_noise, X_all[ind, :, :, :]], axis=0)
+
     T_mean = np.squeeze(np.mean(X_t, axis=0)[CH, :, :])
     T_std = np.squeeze(np.std(X_t, axis=0)[CH, :, :])
     if multiNT is True:
@@ -792,6 +830,8 @@ def _signal_plot_2(SBJ_PLOT, CH=0, multiNT=False):
     else:
         NT_mean = np.squeeze(np.mean(X_nt['nt'], axis=0)[CH, :, :])
         NT_std = np.squeeze(np.std(X_nt['nt'], axis=0)[CH, :, :])
+        NOISE_mean = np.squeeze(np.mean(X_noise, axis=0)[CH, :, :])
+        NOISE_std = np.squeeze(np.std(X_noise, axis=0)[CH, :, :])
     ax = fig.add_subplot(111)
     if multiNT is False:
         ax.plot(time_axis, NT_mean, color='darkcyan')
@@ -799,7 +839,13 @@ def _signal_plot_2(SBJ_PLOT, CH=0, multiNT=False):
                         NT_mean - NT_std,
                         NT_mean + NT_std,
                         color='lightblue', alpha=0.75)
+        ax.plot(time_axis, NOISE_mean, color='darkgoldenrod')
+        ax.fill_between(time_axis,
+                        NOISE_mean - NOISE_std,
+                        NOISE_mean + NOISE_std,
+                        color='oldlace', alpha=0.75)
         LEGENDS = ['Non-target Ave.', 'Non-target STD', 'Target Ave.', 'Target STD']
+
     else:
         LEGENDS = []
         for key in NT_mean.keys():
@@ -830,6 +876,7 @@ def _signal_plot_2(SBJ_PLOT, CH=0, multiNT=False):
     ax.set_ylim([-30, 50])
     ax.set_xlim([-0.2, 1.0])
     # ax.legend(LEGENDS, loc='upper left', prop=font)
+    ax.legend(['NT-mean', 'NT-std', 'N-mean', 'N-std', 'T-mean', 'T-std'], loc='upper left', prop=font)
     TITLE = 'SBJ09'
     ax.set_title(TITLE, size=18, font='Times New Roman')
     ax.grid(axis='y')
@@ -903,12 +950,12 @@ def _write_csv():
     # result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_3ch_epoch_4/')
     # result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_3ch_epoch_5/')
     # result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_3ch_epoch_6/')
-    result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_8ch_epoch_1/')
-    result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_8ch_epoch_2/')
-    result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_8ch_epoch_3/')
-    result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_8ch_epoch_4/')
-    result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_8ch_epoch_5/')
-    result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_vit_8ch_epoch_6/')
+    result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results/results_noICA_loss_vit_8ch_epoch_1/')
+    result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results/results_noICA_loss_vit_8ch_epoch_2/')
+    result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results/results_noICA_loss_vit_8ch_epoch_3/')
+    result4 = _read_acc('D:/Code/PycharmProjects/P300_detect/results/results_noICA_loss_vit_8ch_epoch_4/')
+    result5 = _read_acc('D:/Code/PycharmProjects/P300_detect/results/results_noICA_loss_vit_8ch_epoch_5/')
+    result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results/results_noICA_loss_vit_8ch_epoch_6/')
     # result1 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_0ch_epoch_1/')
     # result2 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_0ch_epoch_2/')
     # result3 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_0ch_epoch_3/')
@@ -929,7 +976,7 @@ def _write_csv():
     # result6 = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_effnetv2_8ch_epoch_6/')
     # with open('results_noICA_loss_csplda_0ch.csv', 'w', encoding='UTF8', newline='') as f:
     # with open('results_noICA_loss_eegnet_0ch.csv', 'w', encoding='UTF8', newline='') as f:
-    with open('results_noICA_loss_vit_8ch.csv', 'w', encoding='UTF8', newline='') as f:
+    with open('results/results_noICA_loss_vit_8ch.csv', 'w', encoding='UTF8', newline='') as f:
     # with open('results_noICA_loss_custom_8ch.csv', 'w', encoding='UTF8', newline='') as f:
     # with open('results_noICA_loss_effnetv2_0ch.csv', 'w', encoding='UTF8', newline='') as f:
         writer = csv.writer(f)
@@ -961,7 +1008,7 @@ def _write_csv():
 # _signal_plot(SBJ_PLOT=['01', '02', '03', '04', '06', '07', '08', '09'], CH=27)
 # _signal_plot(SBJ_PLOT=['01'], CH=27)
 # result = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_0ch_epoch_1/')
-# _write_csv()
+_write_csv()
 # with open('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_eegnet_0ch_epoch_1/01_01.json') as json_file:
 # with open('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_0ch_epoch_4/01_01.json') as json_file:
 #     data = json.load(json_file)
@@ -969,9 +1016,9 @@ def _write_csv():
 # plt.plot(data['Y_true'], '-')
 # plt.show()
 # print('a')
-_acc_plot_2()
+# _acc_plot_2()
 # _signal_plot_2(SBJ_PLOT=['01', '02', '03', '04', '06', '07', '08', '09'], CH=45, multiNT=False)
-# _signal_plot_2(SBJ_PLOT=['09'], CH=45, multiNT=False)
+# _signal_plot_2(SBJ_PLOT=['01'], CH=29, multiNT=False)
 
 # data_pkg = mne.read_epochs_eeglab(r'D:\Code\PycharmProjects\P300_detect\data\SEP BCI 125 0-20 no ICA\04_01.set')
 # # montage = mne.channels.get_builtin_montages()
