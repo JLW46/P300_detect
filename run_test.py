@@ -18,6 +18,8 @@ from mne.io import concatenate_raws, read_raw_edf
 from mne.datasets import eegbci
 from mne.decoding import CSP
 
+import torch
+
 # TRAIN = [
 #     '01_01.set',
 #     '01_02.set',
@@ -375,18 +377,21 @@ def _run_cnn_test2(epochs=1):
     return
 
 def _run_cnn_torch(epochs=1):
-    # out_len = 2, CategoricalCrossEntropy
     CLASS = {
-        '4': [0],  # nt estim
-        '8': [1],  # t estim
-        '16': [0],  # nt astim
-        '32': [0],  # t astim
-        '64': [0],  # nt vstim
-        '128': [0]  # t vstim
+        '4': [0, 1],  # nt estim
+        '8': [1, 0],  # t estim
+        '16': [0, 1],  # nt astim
+        '32': [1, 0],  # t astim
+        '64': [0, 1],  # nt vstim
+        '128': [1, 0]  # t vstim
     }
     # CH_SELECT = [9, 27, 45, 59, 43, 47, 50, 56]
     # CH_SELECT = [9, 27, 45]
     CH_SELECT = False
+    if CH_SELECT is False:
+        num_ch = 64
+    else:
+        num_ch = len(CH_SELECT)
     for sbj in ['01', '02', '03', '04', '06', '07', '08', '09']:
     # for sbj in ['04', '06', '07', '08', '09']:
         # create TRAIN
@@ -398,74 +403,38 @@ def _run_cnn_torch(epochs=1):
         # if True:
         #     TEST = ['07_01.set']
             TEST = [item]
-            X_train, Y_train, X_test, Y_test, class_weights, events_train, \
-            sample_weights_train, sample_weights_test = util_preprocessing._build_dataset_eeglab(FOLDER=FOLDER, CLASS=CLASS,
-                                                                                                 TRAIN=TRAIN, TEST=TEST,
-                                                                                                 ch_last=True,
-                                                                                                 trainset_ave=epochs,
-                                                                                                 testset_ave=epochs,
-                                                                                                 ch_select=CH_SELECT,
-                                                                                                 rep=4)
+            # X_train, Y_train, X_test, Y_test, class_weights, events_train, \
+            # sample_weights_train, sample_weights_test = util_preprocessing._build_dataset_eeglab(FOLDER=FOLDER, CLASS=CLASS,
+            #                                                                                      TRAIN=TRAIN, TEST=TEST,
+            #                                                                                      ch_last=False,
+            #                                                                                      trainset_ave=epochs,
+            #                                                                                      testset_ave=epochs,
+            #                                                                                      ch_select=CH_SELECT,
+            #                                                                                      rep=4)
+            X_train, Y_train, X_test, Y_test = util_preprocessing._build_dataset_strat2(FOLDER, TRAIN, TEST, CLASS,
+                                                                     ch_select=CH_SELECT, rep=2)
+            # transpose to ch-first for torch
+            # X_train = np.transpose(X_train, (0, 3, 1, 2))
             print(np.shape(X_train))
             print(np.shape(Y_train))
+            # X_test = np.transpose(X_test, (0, 3, 1, 2))
             print(np.shape(X_test))
             print(np.shape(Y_test))
             print(np.sum(Y_train, axis=0))
             print(np.sum(Y_test, axis=0))
 
-            model = util_torch.EEGNET(eeg_ch=)
+            model = util_torch.EEGNET(eeg_ch=num_ch)
+            data_set_train = util_torch.EegData(X_train, Y_train)
+            data_set_test = util_torch.EegData(X_test, Y_test)
+            train_set, val_set = torch.utils.data.random_split(data_set_train, [0.8, 0.2])
+
+            data_lens = [len(train_set), len(val_set), len(data_set_test)]
+            train_loader = torch.utils.data.DataLoader(train_set, batch_size=16, shuffle=True, num_workers=0)
+            val_loader = torch.utils.data.DataLoader(val_set, batch_size=16, shuffle=False, num_workers=0)
+            test_loader = torch.utils.data.DataLoader(data_set_test, batch_size=16, shuffle=False, num_workers=0)
 
 
-
-
-
-            keras.backend.clear_session()
-            callback_1 = util_tf.IterTracker(X_test=X_test, Y_test=Y_test)
-            # model = util_tf._eegnet(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
-            # model = util_tf._custom(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
-            model = util_tf._effnetV2(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
-            # model = util_tf._vit(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
-            model.fit(x=X_train, y=Y_train, epochs=200, batch_size=32, callbacks=[callback_1])
-            print('---------++++++++++++______________')
-            print(callback_1.best_scores)
-            print('DONE!')
-            # SAVE_PATH = r'results_noICA_loss_eegnet_8ch_epoch_' + str(epochs) + '/'
-            # SAVE_PATH = r'results_noICA_loss_custom_8ch_epoch_' + str(epochs) + '/'
-            # SAVE_PATH = r'results_noICA_effnetv2_0ch_epoch_' + str(epochs) + '/'
-            SAVE_PATH = r'results_noICA_loss_vit_0ch_epoch_' + str(epochs) + '/'
-            if os.path.exists(SAVE_PATH):
-                pass
-            else:
-                os.makedirs(SAVE_PATH)
-            FILE_NAME = SAVE_PATH + TEST[0].split('.')[0] + '.json'
-            if os.path.isfile(FILE_NAME):
-                with open(FILE_NAME) as json_file:
-                    data = json.load(json_file)
-                    old_loss = data['loss']
-                if callback_1.best_scores['loss'] < old_loss:
-                    with open(FILE_NAME, "w") as json_file:
-                        json.dump(callback_1.best_scores, json_file)
-                    model.set_weights(callback_1.best_weights)
-                    # model.save(SAVE_PATH + TEST[0].split('.')[0] + '_iter_' + str(callback_1.best_scores['epoch']))
-            else:
-                with open(FILE_NAME, "w") as json_file:
-                    json.dump(callback_1.best_scores, json_file)
-                model.set_weights(callback_1.best_weights)
-                # model.save(SAVE_PATH + TEST[0].split('.')[0] + '_iter_' + str(callback_1.best_scores['epoch']))
-            # if os.path.isfile(FILE_NAME):
-            #     with open(FILE_NAME) as json_file:
-            #         data = json.load(json_file)
-            #         old_auc = data['auc']
-            #     if callback_1.best_scores['auc'] > old_auc:
-            #         with open(FILE_NAME, "w") as json_file:
-            #             json.dump(callback_1.best_scores, json_file)
-            #         model.set_weights(callback_1.best_weights)
-            #         model.save(SAVE_PATH + TEST[0].split('.')[0] + '_iter_' + str(callback_1.best_scores['epoch']))
-            # else:
-            #     with open(FILE_NAME, "w") as json_file:
-            #         json.dump(callback_1.best_scores, json_file)
-            #     model.set_weights(callback_1.best_weights)
-            #     model.save(SAVE_PATH + TEST[0].split('.')[0] + '_iter_' + str(callback_1.best_scores['epoch']))
+            fitted_model = util_torch._fit(model, train_loader=train_loader, val_loader=val_loader, test_loader=test_loader)
 
     return
 
@@ -552,5 +521,6 @@ def _run_csp_lda(display=False, epochs=1):
 for i in [1, 2, 3, 4, 5, 6]:
 # for i in [5, 6]:
 #     _run_csp_lda(display=False, epochs=i)
-    _run_cnn_test2(epochs=i)
+#     _run_cnn_test2(epochs=i)
+    _run_cnn_torch(epochs=4)
 # _run_cnn_test2(epochs=6)

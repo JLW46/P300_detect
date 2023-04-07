@@ -3,6 +3,7 @@ import scipy
 import os
 import mne
 import random
+import itertools
 import matplotlib.pyplot as plt
 import json
 
@@ -243,41 +244,77 @@ def _build_dataset_eeglab(FOLDER, TRAIN, TEST, CLASS, ch_last=False,
     class_weights_test = []
     sample_weights_train = []
     sample_weights_test = []
-    if len(np.shape(summation)) > 1:
-        for i in range(len(summation)):
-            w_inv = 0
-            for j in range(len(summation)):
-                w_inv = w_inv + summation[i]/summation[j]
-            class_weights.append(1/w_inv)
-        for i in range(len(summation_test)):
-            w_inv = 0
-            for j in range(len(summation_test)):
-                w_inv = w_inv + summation_test[i]/summation_test[j]
-            class_weights_test.append(1/w_inv)
-        class_weights = np.array(class_weights)
-        class_weights_test = np.array(class_weights_test)
-        # loss_weights = loss_weights/np.sum(loss_weights)
-        sample_weights_train = np.ones(np.shape(Y_train)[0])
-        sample_weights_train[np.where(Y_train[:, 0] == 1)[0]] = class_weights[0]
-        sample_weights_train[np.where(Y_train[:, 1] == 1)[0]] = class_weights[1]
-        sample_weights_test = np.ones(np.shape(Y_test)[0])
-        sample_weights_test[np.where(Y_test[:, 0] == 1)[0]] = class_weights_test[0]
-        sample_weights_test[np.where(Y_test[:, 1] == 1)[0]] = class_weights_test[1]
-    else:
-        t_cnt = 0
-        nt_cnt = 0
-        for i in range(np.shape(Y_test)[0]):
-            if Y_test[i] == 0:
-                nt_cnt = nt_cnt + 1
-            else:
-                t_cnt = t_cnt + 1
-        for i in range(np.shape(Y_test)[0]):
-            if Y_test[i] == 0:
-                sample_weights_test.append(t_cnt/(t_cnt + nt_cnt))
-            else:
-                sample_weights_test.append(nt_cnt/(t_cnt + nt_cnt))
+    # if len(np.shape(summation)) > 1:
+    #     for i in range(len(summation)):
+    #         w_inv = 0
+    #         for j in range(len(summation)):
+    #             w_inv = w_inv + summation[i]/summation[j]
+    #         class_weights.append(1/w_inv)
+    #     for i in range(len(summation_test)):
+    #         w_inv = 0
+    #         for j in range(len(summation_test)):
+    #             w_inv = w_inv + summation_test[i]/summation_test[j]
+    #         class_weights_test.append(1/w_inv)
+    #     class_weights = np.array(class_weights)
+    #     class_weights_test = np.array(class_weights_test)
+    #     # loss_weights = loss_weights/np.sum(loss_weights)
+    #     sample_weights_train = np.ones(np.shape(Y_train)[0])
+    #     sample_weights_train[np.where(Y_train[:, 0] == 1)[0]] = class_weights[0]
+    #     sample_weights_train[np.where(Y_train[:, 1] == 1)[0]] = class_weights[1]
+    #     sample_weights_test = np.ones(np.shape(Y_test)[0])
+    #     sample_weights_test[np.where(Y_test[:, 0] == 1)[0]] = class_weights_test[0]
+    #     sample_weights_test[np.where(Y_test[:, 1] == 1)[0]] = class_weights_test[1]
+    # else:
+    #     t_cnt = 0
+    #     nt_cnt = 0
+    #     for i in range(np.shape(Y_test)[0]):
+    #         if Y_test[i] == 0:
+    #             nt_cnt = nt_cnt + 1
+    #         else:
+    #             t_cnt = t_cnt + 1
+    #     for i in range(np.shape(Y_test)[0]):
+    #         if Y_test[i] == 0:
+    #             sample_weights_test.append(t_cnt/(t_cnt + nt_cnt))
+    #         else:
+    #             sample_weights_test.append(nt_cnt/(t_cnt + nt_cnt))
     return X_train, Y_train, X_test, Y_test, class_weights, events_train, sample_weights_train, sample_weights_test
     # return X_train, Y_train, X_test, Y_test, events_train
+
+def _build_dataset_strat2(FOLDER, TRAIN, TEST, CLASS, ch_select=False, rep=1):
+    files = os.listdir(FOLDER)
+    X_train = None
+    Y_train = None
+    X_test = None
+    Y_test = None
+    events_train = None
+    events_test = None
+    for file_name in files:
+        if file_name in TRAIN or file_name in TEST:
+            PATH = os.path.join(FOLDER, file_name)
+            if (file_name in TRAIN) and (file_name not in TEST):
+                X, Y, events = _read_data_strat2(PATH=PATH, CLASS=CLASS,
+                                                 ch_select=ch_select, norm=True, plot=False, num_reps=rep)
+                if X_train is None:
+                    X_train = X
+                    Y_train = Y
+                    events_train = events
+                else:
+                    X_train = np.concatenate([X_train, X], axis=0)
+                    Y_train = np.concatenate([Y_train, Y], axis=0)
+                    events_train = np.concatenate([events_train, events])
+            elif file_name in TEST:
+                X, Y, events = _read_data_strat2(PATH=PATH, CLASS=CLASS,
+                                                 ch_select=ch_select, norm=True, plot=False, num_reps=1)
+                if X_test is None:
+                    X_test = X
+                    Y_test = Y
+                    events_test = events
+                else:
+                    X_test = np.concatenate([X_test, X], axis=0)
+                    Y_test = np.concatenate([Y_test, Y], axis=0)
+                    events_test = np.concatenate([events_test, events])
+
+    return X_train, Y_train, X_test, Y_test
 
 
 def _build_dataset_eeglab_plot(FOLDER, TRAIN, TEST, CLASS):
@@ -303,7 +340,6 @@ def _build_dataset_eeglab_plot(FOLDER, TRAIN, TEST, CLASS):
     print('Events:' + str(np.shape(events_out)))
     return X_out, Y_out, events_out
 
-
 def _get_event(events, event_id):
     out = events[:, 2]
     key_list = list(event_id.keys())
@@ -311,7 +347,6 @@ def _get_event(events, event_id):
     for i in range(len(out)):
         out[i] = int(key_list[val_list.index(out[i])].split('/')[0])
     return out
-
 
 def _read_data_eeglab(PATH, CLASS, ch_last=False, norm=True, epochs=1, sampling='consecutive', plot=False, ch_select=False, rep=1):
     data_pkg = mne.read_epochs_eeglab(PATH)
@@ -354,8 +389,8 @@ def _read_data_eeglab(PATH, CLASS, ch_last=False, norm=True, epochs=1, sampling=
     Y = np.array(Y)
     X_ave = []
     Y_ave = []
-    # for label in [4, 16, 32, 64, 128, 8]:
-    for label in [4, 8, 16, 20, 24, 32, 36, 40, 64, 68, 72, 80, 84, 88, 96, 100, 104, 128, 132, 136, 144, 148, 152, 160, 164, 168]:
+    for label in [4, 16, 32, 64, 128, 8]:
+    # for label in [4, 8, 16, 20, 24, 32, 36, 40, 64, 68, 72, 80, 84, 88, 96, 100, 104, 128, 132, 136, 144, 148, 152, 160, 164, 168]:
         inds = list(np.where(events == label)[0])
         for _ in range(rep):
             for i in range(len(inds)):
@@ -384,7 +419,7 @@ def _read_data_eeglab(PATH, CLASS, ch_last=False, norm=True, epochs=1, sampling=
     X_ave = np.array(X_ave)
     Y_ave = np.array(Y_ave)
     if np.shape(Y_ave)[1] > 1:
-        pos_ind = np.where(Y_ave[:, 1] == 1)[0]
+        pos_ind = np.where(Y_ave[:, 0] == 1)[0]
     else:
         pos_ind = np.where(Y_ave == 1)[0]
     scale = int((np.shape(Y_ave)[0] - len(pos_ind)) / len(pos_ind)) - 1
@@ -392,7 +427,8 @@ def _read_data_eeglab(PATH, CLASS, ch_last=False, norm=True, epochs=1, sampling=
         for i in range(scale):
             X_ave = np.concatenate([X_ave, X_ave[pos_ind]])
             Y_ave = np.concatenate([Y_ave, Y_ave[pos_ind]])
-    print('total: ' + str(len(Y_ave)) + '. target: ' + str(np.sum(Y_ave)))
+    # print('total: ' + str(len(Y_ave)) + '. target: ' + str(np.sum(Y_ave)))
+    print('total: ' + str(np.shape(Y_ave)[0]) + '. target: ' + str(np.sum(Y_ave, axis=0)[0]))
     if plot is True:
         X_out = X
         Y_out = Y
@@ -403,6 +439,73 @@ def _read_data_eeglab(PATH, CLASS, ch_last=False, norm=True, epochs=1, sampling=
         events_out = np.array(events_new)
     return X_out, Y_out, events_out
 
+def _read_data_strat2(PATH, CLASS, ch_select=False, norm=True, plot=False, num_reps=1):
+    data_pkg = mne.read_epochs_eeglab(PATH)
+    events = _get_event(data_pkg.events, data_pkg.event_id)
+    data = data_pkg._data
+    if ch_select is not False:
+        CH = len(ch_select)
+    else:
+        CH = np.shape(data)[1]
+    T = np.shape(data)[2]
+    T_re = 100
+    X = []
+    Y = []
+    events_new = []
+    for i in range(np.shape(data)[0]):
+        Y.append(CLASS[str(events[i])])
+        x = data[i, :, :]
+        if ch_select is False:
+            pass
+        else:
+            x = x[ch_select, :]
+        if norm:
+            # remove baseline by [-0.2, 0.0]s
+            x_norm = (x - np.repeat(np.reshape(np.mean(x[:, :25], axis=1), (CH, 1)), T, axis=1)) / (
+                # np.repeat(np.reshape(np.std(x[:, -T_re:], axis=1), (CH, 1)), T, axis=1))
+                # np.repeat(np.reshape(np.std(x, axis=1), (CH, 1)), T, axis=1))
+                0.000001)
+            x = x_norm
+            if plot is False:
+                x = x[:, -T_re:-T_re + 75]
+            elif plot is True:
+                pass
+        X.append(np.reshape(x, (1, np.shape(x)[0], np.shape(x)[1])))
+    X = np.array(X)
+    Y = np.array(Y)
+    X_ave = []
+    Y_ave = []
+    for label in [4, 16, 32, 64, 128, 8]:
+        inds = list(np.where(events == label)[0])
+        for rep in range(num_reps):
+            combinations = list(itertools.combinations(inds, rep + 1))
+            for combo in combinations:
+                X_ave.append(np.mean(X[list(combo)], axis=0))
+                Y_ave.append(CLASS[str(label)])
+                events_new.append(label)
+    X_ave = np.array(X_ave)
+    Y_ave = np.array(Y_ave)
+    events_new = np.array(events_new)
+    if np.shape(Y_ave)[1] > 1:
+        pos_ind = np.where(Y_ave[:, 0] == 1)[0]
+    else:
+        pos_ind = np.where(Y_ave == 1)[0]
+    scale = int((np.shape(Y_ave)[0] - len(pos_ind)) / len(pos_ind)) - 1
+    if scale > 0:
+        for i in range(scale):
+            X_ave = np.concatenate([X_ave, X_ave[pos_ind]])
+            Y_ave = np.concatenate([Y_ave, Y_ave[pos_ind]])
+            events_new = np.concatenate([events_new, events_new[pos_ind]])
+    print('total: ' + str(len(Y_ave)) + '. target: ' + str((scale + 1)*len(pos_ind)))
+    if plot is True:
+        X_out = X
+        Y_out = Y
+        events_out = np.array(events)
+    else:
+        X_out = X_ave
+        Y_out = Y_ave
+        events_out = events_new
+    return X_out, Y_out, events_out
 
 def _make_average(X, Y, CLASS, events, fold=1, epochs=1, consec=False):
     # for i in range(len(CLASS)):
@@ -485,3 +588,4 @@ def _consec_average(X, Y, epochs=2):
 # PATH = r'D:\Code\PycharmProjects\P300_detect\data\a\01_01.set'
 # data_pkg = mne.read_epochs_eeglab(PATH)
 # print('a')
+
