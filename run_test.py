@@ -338,8 +338,8 @@ def _run_cnn_test2(epochs=1):
             print('DONE!')
             # SAVE_PATH = r'results_noICA_loss_eegnet_8ch_epoch_' + str(epochs) + '/'
             # SAVE_PATH = r'results_noICA_loss_custom_8ch_epoch_' + str(epochs) + '/'
-            # SAVE_PATH = r'results_noICA_effnetv2_0ch_epoch_' + str(epochs) + '/'
-            SAVE_PATH = r'results_noICA_loss_vit_0ch_epoch_' + str(epochs) + '/'
+            SAVE_PATH = r'results_noICA_effnetv2_0ch_epoch_' + str(epochs) + '/'
+            # SAVE_PATH = r'results_noICA_loss_vit_0ch_epoch_' + str(epochs) + '/'
             if os.path.exists(SAVE_PATH):
                 pass
             else:
@@ -412,7 +412,8 @@ def _run_cnn_torch(epochs=1):
             #                                                                                      ch_select=CH_SELECT,
             #                                                                                      rep=4)
             X_train, Y_train, X_test, Y_test = util_preprocessing._build_dataset_strat2(FOLDER, TRAIN, TEST, CLASS,
-                                                                     ch_select=CH_SELECT, rep=2)
+                                                                     ch_select=CH_SELECT, rep_train=4, rep_test=4,
+                                                                                        mult=6)
             # transpose to ch-first for torch
             # X_train = np.transpose(X_train, (0, 3, 1, 2))
             print(np.shape(X_train))
@@ -424,14 +425,17 @@ def _run_cnn_torch(epochs=1):
             print(np.sum(Y_test, axis=0))
 
             model = util_torch.EEGNET(eeg_ch=num_ch)
+            print(model)
             data_set_train = util_torch.EegData(X_train, Y_train)
             data_set_test = util_torch.EegData(X_test, Y_test)
-            train_set, val_set = torch.utils.data.random_split(data_set_train, [0.8, 0.2])
+            train_set, val_set = torch.utils.data.random_split(data_set_train, [0.9, 0.1])
 
             data_lens = [len(train_set), len(val_set), len(data_set_test)]
-            train_loader = torch.utils.data.DataLoader(train_set, batch_size=16, shuffle=True, num_workers=0)
-            val_loader = torch.utils.data.DataLoader(val_set, batch_size=16, shuffle=False, num_workers=0)
-            test_loader = torch.utils.data.DataLoader(data_set_test, batch_size=16, shuffle=False, num_workers=0)
+            print(data_lens)
+            b_size = 16
+            train_loader = torch.utils.data.DataLoader(train_set, batch_size=b_size, shuffle=True, num_workers=0)
+            val_loader = torch.utils.data.DataLoader(val_set, batch_size=b_size, shuffle=False, num_workers=0)
+            test_loader = torch.utils.data.DataLoader(data_set_test, batch_size=b_size, shuffle=False, num_workers=0)
 
 
             fitted_model = util_torch._fit(model, train_loader=train_loader, val_loader=val_loader, test_loader=test_loader)
@@ -518,9 +522,10 @@ def _run_csp_lda(display=False, epochs=1):
 
     return
 
-for i in [1, 2, 3, 4, 5, 6]:
+# for i in [1, 2, 3, 4, 5, 6]:
 # for i in [5, 6]:
 #     _run_csp_lda(display=False, epochs=i)
 #     _run_cnn_test2(epochs=i)
-    _run_cnn_torch(epochs=4)
+#     _run_cnn_torch(epochs=6)
 # _run_cnn_test2(epochs=6)
+_run_cnn_torch(epochs=6)

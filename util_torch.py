@@ -7,10 +7,46 @@ import torchvision.transforms as transforms
 import numpy as np
 
 
-class EEGNET(nn.Module):
+# class EEGNET(nn.Module):
+#       # len=75
+#     def __init__(self, eeg_ch):
+#         # in_shape = [C_ch, H_eegch, W_time] [1, 64, 75]
+#         super(EEGNET, self).__init__()
+#         self.conv1 = nn.Conv2d(in_channels=1, out_channels=8,
+#                                kernel_size=(1, 37), stride=(1, 1),
+#                                padding='same')
+#         self.bn1 = nn.BatchNorm2d(num_features=8)
+#         self.conv2 = nn.Conv2d(in_channels=8, out_channels=16,
+#                                kernel_size=(eeg_ch, 1), stride=(1, 1),
+#                                padding='valid', groups=8)
+#         self.bn2 = nn.BatchNorm2d(num_features=16)
+#         self.conv3 = nn.Conv2d(in_channels=16, out_channels=16,
+#                                kernel_size=(1, 15), stride=(1, 1),
+#                                padding='same', groups=16)
+#         self.conv4 = nn.Conv2d(in_channels=16, out_channels=16,
+#                                kernel_size=(1, 1), stride=(1, 1),
+#                                padding='valid')
+#         self.bn3 = nn.BatchNorm2d(num_features=16)
+#         self.fc1 = nn.Linear(64, 2)
+#
+#     def forward(self, x):
+#         # Block 1
+#         x = self.bn1(self.conv1(x)) # [8, ch, 75]
+#         x = self.bn2(self.conv2(x)) # [16, 1. 75]
+#         x = func.dropout(input=(func.avg_pool2d(func.elu(x), (1, 4))), p=0.25) # [16, 1, 18]
+#         # Block 2
+#         x = self.conv3(x)
+#         x = self.bn3(self.conv4(x)) # [16, 1, 18]
+#         x = func.dropout(input=(func.avg_pool2d(func.elu(x), (1, 4))), p=0.5) # [16, 1, 4]
+#         x = torch.flatten(input=x, start_dim=1) # [64]
+#         x = func.softmax(self.fc1(x), dim=-1) # [2]
+#         return x
 
+
+class EEGNET(nn.Module):
+    # len=125
     def __init__(self, eeg_ch):
-        # in_shape = [C_ch, H_eegch, W_time] [1, 64, 75]
+        # in_shape = [C_ch, H_eegch, W_time] [1, 64, 125]
         super(EEGNET, self).__init__()
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=8,
                                kernel_size=(1, 37), stride=(1, 1),
@@ -27,18 +63,18 @@ class EEGNET(nn.Module):
                                kernel_size=(1, 1), stride=(1, 1),
                                padding='valid')
         self.bn3 = nn.BatchNorm2d(num_features=16)
-        self.fc1 = nn.Linear(64, 2)
+        self.fc1 = nn.Linear(80, 2)
 
     def forward(self, x):
         # Block 1
-        x = self.bn1(self.conv1(x)) # [8, ch, 75]
-        x = self.bn2(self.conv2(x)) # [16, 1. 75]
-        x = func.dropout(input=(func.avg_pool2d(func.elu(x), (1, 4))), p=0.25) # [16, 1, 18]
+        x = self.bn1(self.conv1(x)) # [8, ch, 125]
+        x = self.bn2(self.conv2(x)) # [16, 1. 125]
+        x = func.dropout(input=(func.avg_pool2d(func.elu(x), (1, 5))), p=0.25) # [16, 1, 25]
         # Block 2
         x = self.conv3(x)
-        x = self.bn3(self.conv4(x)) # [16, 1, 18]
-        x = func.dropout(input=(func.avg_pool2d(func.elu(x), (1, 4))), p=0.5) # [16, 1, 4]
-        x = torch.flatten(input=x, start_dim=1) # [64]
+        x = self.bn3(self.conv4(x)) # [16, 1, 25]
+        x = func.dropout(input=(func.avg_pool2d(func.elu(x), (1, 5))), p=0.5) # [16, 1, 5]
+        x = torch.flatten(input=x, start_dim=1) # [80]
         x = func.softmax(self.fc1(x), dim=-1) # [2]
         return x
 
@@ -67,14 +103,16 @@ class EegData(torch.utils.data.Dataset):
 
 
 def _fit(model, train_loader, val_loader, test_loader):
-    optimizer = optim.SGD(model.parameters(), lr=0.005)
-    criterion = nn.CrossEntropyLoss(label_smoothing=0.05)
+    # optimizer = optim.SGD(model.parameters(), lr=0.0005, momentum=0.9, weight_decay=0.05)
+    optimizer = optim.Adam(model.parameters(), lr=0.0005, weight_decay=0.0)
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.0)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print(device)
     model.to(device)
-    for epoch in range(20):
+    for epoch in range(200):
         running_train_loss = 0
         running_val_loss = 0
+        running_test_loss = 0
         for i_batch, data_batch in enumerate(train_loader):
             x = data_batch['x'].to(device)
             y = data_batch['y'].to(device)
@@ -100,6 +138,8 @@ def _fit(model, train_loader, val_loader, test_loader):
                 x = data_batch['x'].to(device)
                 y = data_batch['y'].to(device)
                 outputs = model(x)
+                test_loss = criterion(outputs, y)
+                running_test_loss +=test_loss.item()
                 if test_outputs is None:
                     test_outputs = outputs
                     test_labels = y
@@ -114,8 +154,7 @@ def _fit(model, train_loader, val_loader, test_loader):
                 total = total + 1
                 if predict == test_labels[i]:
                     correct = correct + 1
-        running_train_loss = 0
-        running_val_loss = 0
+            print(f'test_loss: {running_test_loss/len(test_loader):.3f}. test_acc: {correct/total:.5f}.')
     print(f'Finished! Test ACC: {correct/total:.3f}')
 
     return model
