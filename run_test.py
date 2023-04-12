@@ -290,13 +290,21 @@ def _run_cnn_test():
 def _run_cnn_test2(epochs=1):
     # out_len = 2, CategoricalCrossEntropy
     CLASS = {
-        '4': [0],  # nt estim
-        '8': [1],  # t estim
-        '16': [0],  # nt astim
-        '32': [0],  # t astim
-        '64': [0],  # nt vstim
-        '128': [0]  # t vstim
+        '4': [0, 1],  # nt estim
+        '8': [1, 0],  # t estim
+        '16': [0, 1],  # nt astim
+        '32': [1, 0],  # t astim
+        '64': [0, 1],  # nt vstim
+        '128': [1, 0]  # t vstim
     }
+    # CLASS = {
+    #     '4': [0],  # nt estim
+    #     '8': [1],  # t estim
+    #     '16': [0],  # nt astim
+    #     '32': [0],  # t astim
+    #     '64': [0],  # nt vstim
+    #     '128': [0]  # t vstim
+    # }
     # CH_SELECT = [9, 27, 45, 59, 43, 47, 50, 56]
     # CH_SELECT = [9, 27, 45]
     CH_SELECT = False
@@ -311,14 +319,25 @@ def _run_cnn_test2(epochs=1):
         # if True:
         #     TEST = ['07_01.set']
             TEST = [item]
-            X_train, Y_train, X_test, Y_test, class_weights, events_train, \
-            sample_weights_train, sample_weights_test = util_preprocessing._build_dataset_eeglab(FOLDER=FOLDER, CLASS=CLASS,
-                                                                                                 TRAIN=TRAIN, TEST=TEST,
-                                                                                                 ch_last=True,
-                                                                                                 trainset_ave=epochs,
-                                                                                                 testset_ave=epochs,
-                                                                                                 ch_select=CH_SELECT,
-                                                                                                 rep=4)
+            strat = 2
+            if strat == 1:
+                X_train, Y_train, X_test, Y_test, class_weights, events_train, \
+                sample_weights_train, sample_weights_test = util_preprocessing._build_dataset_eeglab(FOLDER=FOLDER, CLASS=CLASS,
+                                                                                                     TRAIN=TRAIN, TEST=TEST,
+                                                                                                     ch_last=False,
+                                                                                                     trainset_ave=epochs,
+                                                                                                     testset_ave=epochs,
+                                                                                                     ch_select=CH_SELECT,
+                                                                                                     rep=4)
+            elif strat == 2:
+                X_train, Y_train, X_test, Y_test = util_preprocessing._build_dataset_strat2(FOLDER, TRAIN, TEST, CLASS,
+                                                                                            ch_select=CH_SELECT, rep_train=4,
+                                                                                            rep_test=4,
+                                                                                            mult=8,
+                                                                                            from_rep0=False)
+                # transpose to ch-last for tf2
+                X_train = np.transpose(X_train, (0, 2, 3, 1))
+                X_test = np.transpose(X_test, (0, 2, 3, 1))
             print(np.shape(X_train))
             print(np.shape(Y_train))
             print(np.shape(X_test))
@@ -328,11 +347,11 @@ def _run_cnn_test2(epochs=1):
 
             keras.backend.clear_session()
             callback_1 = util_tf.IterTracker(X_test=X_test, Y_test=Y_test)
-            # model = util_tf._eegnet(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
+            model = util_tf._eegnet(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
             # model = util_tf._custom(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
-            model = util_tf._effnetV2(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
+            # model = util_tf._effnetV2(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
             # model = util_tf._vit(in_shape=np.shape(X_train)[-3:], out_shape=np.shape(Y_train)[-1])
-            model.fit(x=X_train, y=Y_train, epochs=200, batch_size=32, callbacks=[callback_1])
+            model.fit(x=X_train, y=Y_train, epochs=200, batch_size=16, callbacks=[callback_1])
             print('---------++++++++++++______________')
             print(callback_1.best_scores)
             print('DONE!')
@@ -381,9 +400,9 @@ def _run_cnn_torch(epochs=1):
         '4': [0, 1],  # nt estim
         '8': [1, 0],  # t estim
         '16': [0, 1],  # nt astim
-        '32': [1, 0],  # t astim
+        '32': [0, 1],  # t astim
         '64': [0, 1],  # nt vstim
-        '128': [1, 0]  # t vstim
+        '128': [0, 1]  # t vstim
     }
     # CH_SELECT = [9, 27, 45, 59, 43, 47, 50, 56]
     # CH_SELECT = [9, 27, 45]
@@ -412,8 +431,8 @@ def _run_cnn_torch(epochs=1):
             #                                                                                      ch_select=CH_SELECT,
             #                                                                                      rep=4)
             X_train, Y_train, X_test, Y_test = util_preprocessing._build_dataset_strat2(FOLDER, TRAIN, TEST, CLASS,
-                                                                     ch_select=CH_SELECT, rep_train=4, rep_test=4,
-                                                                                        mult=6)
+                                                                     ch_select=CH_SELECT, rep_train=2, rep_test=2,
+                                                                                        mult=10, from_rep0=False)
             # transpose to ch-first for torch
             # X_train = np.transpose(X_train, (0, 3, 1, 2))
             print(np.shape(X_train))
@@ -428,7 +447,7 @@ def _run_cnn_torch(epochs=1):
             print(model)
             data_set_train = util_torch.EegData(X_train, Y_train)
             data_set_test = util_torch.EegData(X_test, Y_test)
-            train_set, val_set = torch.utils.data.random_split(data_set_train, [0.9, 0.1])
+            train_set, val_set = torch.utils.data.random_split(data_set_train, [0.8, 0.2])
 
             data_lens = [len(train_set), len(val_set), len(data_set_test)]
             print(data_lens)

@@ -25,10 +25,12 @@ class IterTracker(keras.callbacks.Callback):
         out = self.model.predict(x=self.X_test)
         new_loss = self.model.evaluate(x=self.X_test, y=self.Y_test)[0]
         if self.Y_test.shape[-1] > 1:
-            Y_pred = out[:, 1]
+            Y_pred = out[:, 0]
+            Y_test = self.Y_test[:, 0]
         else:
             Y_pred = out
-        new_auc = sklearn.metrics.roc_auc_score(y_true=self.Y_test, y_score=Y_pred)
+            Y_test = self.Y_test
+        new_auc = sklearn.metrics.roc_auc_score(y_true=Y_test, y_score=Y_pred)
         if new_loss < self.best_scores['loss']:
         # if new_auc > self.best_scores['auc']:
             self.best_scores['Y_pred'] = np.squeeze(Y_pred).tolist()

@@ -5,6 +5,7 @@ import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 # class EEGNET(nn.Module):
@@ -109,10 +110,19 @@ def _fit(model, train_loader, val_loader, test_loader):
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print(device)
     model.to(device)
+    log_train_loss = []
+    log_val_loss = []
+    log_test_loss = []
+    log_train_acc = []
+    log_val_acc = []
+    log_test_acc = []
     for epoch in range(200):
         running_train_loss = 0
         running_val_loss = 0
         running_test_loss = 0
+        train_outputs = None
+        val_outputs = None
+        test_outputs = None
         for i_batch, data_batch in enumerate(train_loader):
             x = data_batch['x'].to(device)
             y = data_batch['y'].to(device)
@@ -122,6 +132,23 @@ def _fit(model, train_loader, val_loader, test_loader):
             train_loss.backward()
             optimizer.step()
             running_train_loss += train_loss.item()
+            if train_outputs is None:
+                train_outputs = outputs
+                train_labels = y
+            else:
+                train_outputs = torch.cat((train_outputs, outputs), dim=0)
+                train_labels = torch.cat((train_labels, y), dim=0)
+        _, train_predicts = torch.max(train_outputs, dim=1)
+        _, train_labels = torch.max(train_labels, dim=1)
+        total = 0
+        correct = 0
+        for i, predict in enumerate(train_predicts):
+            total = total + 1
+            if predict == train_labels[i]:
+                correct = correct + 1
+        train_acc = correct/total
+        log_train_acc.append(train_acc)
+        log_train_loss.append(running_train_loss/len(train_loader))
         if val_loader is not None:
             for data_batch in val_loader:
                 x = data_batch['x'].to(device)
@@ -130,10 +157,24 @@ def _fit(model, train_loader, val_loader, test_loader):
                 outputs = model(x)
                 val_loss = criterion(outputs, y)
                 running_val_loss += val_loss.item()
-            print(f'{epoch + 1} train_loss: {running_train_loss/len(train_loader):.3f}. '
-                  f'val_loss: {running_val_loss/len(val_loader):.3f}.')
+                if val_outputs is None:
+                    val_outputs = outputs
+                    val_labels = y
+                else:
+                    val_outputs = torch.cat((val_outputs, outputs), dim=0)
+                    val_labels = torch.cat((val_labels, y), dim=0)
+            _, val_predicts = torch.max(val_outputs, dim=1)
+            _, val_labels = torch.max(val_labels, dim=1)
+            total = 0
+            correct = 0
+            for i, predict in enumerate(val_predicts):
+                total = total + 1
+                if predict == val_labels[i]:
+                    correct = correct + 1
+            val_acc = correct / total
+            log_val_acc.append(val_acc)
+            log_val_loss.append(running_val_loss/len(val_loader))
         if test_loader is not None:
-            test_outputs = None
             for data_batch in test_loader:
                 x = data_batch['x'].to(device)
                 y = data_batch['y'].to(device)
@@ -154,9 +195,41 @@ def _fit(model, train_loader, val_loader, test_loader):
                 total = total + 1
                 if predict == test_labels[i]:
                     correct = correct + 1
-            print(f'test_loss: {running_test_loss/len(test_loader):.3f}. test_acc: {correct/total:.5f}.')
-    print(f'Finished! Test ACC: {correct/total:.3f}')
+            test_acc = correct/total
+            log_test_acc.append(test_acc)
+            log_test_loss.append(running_test_loss/len(test_loader))
+        print(f'epoch: {epoch} '
+              f'loss: [{running_train_loss/len(train_loader):.4f} {running_val_loss/len(val_loader):.4f} {running_test_loss/len(test_loader):.4f}] '
+              f'acc: [{train_acc:.4f} {val_acc:.4f} {test_acc:.4f}]')
+        # Early stopping
+        if len(log_val_loss) > 20:
+            check = np.array(log_val_loss[-20:])
+            if (np.amax(check) - np.amin(check)) < 0.001:
+                print('Triggered early stopping.')
+                break
+    print(f'Finished! Test ACC: {correct / total:.3f}')
+    fig = plt.figure()
+    ax_loss = fig.add_subplot(121, title="Loss")
+    ax_acc = fig.add_subplot(122, title="ACC")
+    ax_loss.set_xlim([0, 200])
+    ax_acc.set_xlim([0, 200])
+    ax_loss.set_ylim([0, 1.5])
+    ax_acc.set_ylim([0, 1])
+    ax_loss.grid()
+    ax_acc.grid()
 
+    ax_loss.plot(log_train_loss, label='Train')
+    ax_loss.plot(log_val_loss, label='Val')
+    ax_loss.plot(log_test_loss, label='Test')
+
+    ax_acc.plot(log_train_acc, label='Train')
+    ax_acc.plot(log_val_acc, label='Val')
+    ax_acc.plot(log_test_acc, label='Test')
+
+    ax_loss.legend()
+    ax_acc.legend()
+
+    plt.show()
     return model
 
 
