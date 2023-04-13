@@ -79,6 +79,26 @@ class EEGNET(nn.Module):
         x = func.softmax(self.fc1(x), dim=-1) # [2]
         return x
 
+
+class VIT(nn.Module):
+    def __init__(self, eeg_ch):
+        # in_shape = [C_ch, H_eegch, W_time] [1, 64, 125]
+        super(EEGNET, self).__init__()
+        self.h = eeg_ch
+        self.projection = nn.Linear(self.h*25, 128)
+
+
+    def forward(self, x):
+
+        # Patching x[b, c, h, w=125] --> [b, p, f]
+        x = torch.transpose(torch.reshape(x, (-1, 1, self.h, 5, 25)), 3, 4)
+        x = torch.transpose(torch.reshape(x, (-1, self.h*25, 5)), 1, 2)
+        x = self.projection(x)
+
+
+        return x
+
+
 class EegData(torch.utils.data.Dataset):
     def __init__(self, raw_x, raw_y):
         """
@@ -257,5 +277,6 @@ def _fit(model, train_loader, val_loader, test_loader):
     #
     # plt.show()
     return model, out
+
 
 
