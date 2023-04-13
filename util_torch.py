@@ -105,7 +105,7 @@ class EegData(torch.utils.data.Dataset):
 
 def _fit(model, train_loader, val_loader, test_loader):
     # optimizer = optim.SGD(model.parameters(), lr=0.0005, momentum=0.9, weight_decay=0.05)
-    optimizer = optim.Adam(model.parameters(), lr=0.0005, weight_decay=0.0)
+    optimizer = optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.0)
     criterion = nn.CrossEntropyLoss(label_smoothing=0.0)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print(device)
@@ -116,7 +116,7 @@ def _fit(model, train_loader, val_loader, test_loader):
     log_train_acc = []
     log_val_acc = []
     log_test_acc = []
-    for epoch in range(200):
+    for epoch in range(10):
         running_train_loss = 0
         running_val_loss = 0
         running_test_loss = 0
@@ -197,7 +197,7 @@ def _fit(model, train_loader, val_loader, test_loader):
                     correct = correct + 1
             test_acc = correct/total
             log_test_acc.append(test_acc)
-            log_test_loss.append(running_test_loss/len(test_loader))
+            log_test_loss.append(running_test_loss / len(test_loader))
         print(f'epoch: {epoch} '
               f'loss: [{running_train_loss/len(train_loader):.4f} {running_val_loss/len(val_loader):.4f} {running_test_loss/len(test_loader):.4f}] '
               f'acc: [{train_acc:.4f} {val_acc:.4f} {test_acc:.4f}]')
@@ -207,29 +207,55 @@ def _fit(model, train_loader, val_loader, test_loader):
             if (np.amax(check) - np.amin(check)) < 0.001:
                 print('Triggered early stopping.')
                 break
-    print(f'Finished! Test ACC: {correct / total:.3f}')
-    fig = plt.figure()
-    ax_loss = fig.add_subplot(121, title="Loss")
-    ax_acc = fig.add_subplot(122, title="ACC")
-    ax_loss.set_xlim([0, 200])
-    ax_acc.set_xlim([0, 200])
-    ax_loss.set_ylim([0, 1.5])
-    ax_acc.set_ylim([0, 1])
-    ax_loss.grid()
-    ax_acc.grid()
-
-    ax_loss.plot(log_train_loss, label='Train')
-    ax_loss.plot(log_val_loss, label='Val')
-    ax_loss.plot(log_test_loss, label='Test')
-
-    ax_acc.plot(log_train_acc, label='Train')
-    ax_acc.plot(log_val_acc, label='Val')
-    ax_acc.plot(log_test_acc, label='Test')
-
-    ax_loss.legend()
-    ax_acc.legend()
-
-    plt.show()
-    return model
+    tp = 0
+    tn = 0
+    fp = 0
+    fn = 0
+    for i in range(len(test_predicts)):
+        if test_predicts[i] == 0:
+            if test_labels[i] == 0:
+                tn = tn + 1
+            else:
+                fn = fn + 1
+        else:
+            if test_labels[i] == 1:
+                tp = tp + 1
+            else:
+                fp = fp + 1
+    total = tp + tn + fp + fn
+    ACC = (tp + tn) / total
+    PRECISION = tp/(tp + fp)
+    RECALL = tp/(tp + fn)
+    F1 = 2*PRECISION*RECALL/(PRECISION + RECALL)
+    print(f'Finished! ACC: {ACC:.4f} PRECISION: {PRECISION:.4f} RECALL: {RECALL:.4f} F1: {F1:.4f}')
+    out = {
+        'acc': ACC,
+        'prec': PRECISION,
+        'recall': RECALL,
+        'f1': F1,
+        'loss': log_test_loss[-1]
+    }
+    # ax_loss = fig.add_subplot(121, title="Loss")
+    # ax_acc = fig.add_subplot(122, title="ACC")
+    # ax_loss.set_xlim([0, 200])
+    # ax_acc.set_xlim([0, 200])
+    # ax_loss.set_ylim([0, 1.5])
+    # ax_acc.set_ylim([0, 1])
+    # ax_loss.grid()
+    # ax_acc.grid()
+    #
+    # ax_loss.plot(log_train_loss, label='Train')
+    # ax_loss.plot(log_val_loss, label='Val')
+    # ax_loss.plot(log_test_loss, label='Test')
+    #
+    # ax_acc.plot(log_train_acc, label='Train')
+    # ax_acc.plot(log_val_acc, label='Val')
+    # ax_acc.plot(log_test_acc, label='Test')
+    #
+    # ax_loss.legend()
+    # ax_acc.legend()
+    #
+    # plt.show()
+    return model, out
 
 

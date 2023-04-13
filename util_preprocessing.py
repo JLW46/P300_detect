@@ -280,7 +280,7 @@ def _build_dataset_eeglab(FOLDER, TRAIN, TEST, CLASS, ch_last=False,
     return X_train, Y_train, X_test, Y_test, class_weights, events_train, sample_weights_train, sample_weights_test
     # return X_train, Y_train, X_test, Y_test, events_train
 
-def _build_dataset_strat2(FOLDER, TRAIN, TEST, CLASS, ch_select=False, rep_train=1, rep_test=1, mult=1):
+def _build_dataset_strat2(FOLDER, TRAIN, TEST, CLASS, ch_select=False, rep_train=1, rep_test=1, mult=1, from_rep0=False):
     files = os.listdir(FOLDER)
     X_train = None
     Y_train = None
@@ -294,8 +294,8 @@ def _build_dataset_strat2(FOLDER, TRAIN, TEST, CLASS, ch_select=False, rep_train
             if (file_name in TRAIN) and (file_name not in TEST):
                 X, Y, events = _read_data_strat2(PATH=PATH, CLASS=CLASS,
                                                  ch_select=ch_select, norm=True, plot=False,
-                                                 test=False, num_reps_train=rep_train, num_reps_test=rep_test,
-                                                 mult=mult)
+                                                 test=False, from_rep0=from_rep0,
+                                                 num_reps_train=rep_train, num_reps_test=rep_test, mult=mult)
                 if X_train is None:
                     X_train = X
                     Y_train = Y
@@ -307,8 +307,8 @@ def _build_dataset_strat2(FOLDER, TRAIN, TEST, CLASS, ch_select=False, rep_train
             elif file_name in TEST:
                 X, Y, events = _read_data_strat2(PATH=PATH, CLASS=CLASS,
                                                  ch_select=ch_select, norm=True, plot=False,
-                                                 test=True, num_reps_train=rep_train, num_reps_test=rep_test,
-                                                 mult=mult)
+                                                 test=True, from_rep0=from_rep0,
+                                                 num_reps_train=rep_train, num_reps_test=rep_test, mult=mult)
                 if X_test is None:
                     X_test = X
                     Y_test = Y
@@ -443,7 +443,7 @@ def _read_data_eeglab(PATH, CLASS, ch_last=False, norm=True, epochs=1, sampling=
         events_out = np.array(events_new)
     return X_out, Y_out, events_out
 
-def _read_data_strat2(PATH, CLASS, ch_select=False, norm=True, plot=False, test=False,
+def _read_data_strat2(PATH, CLASS, ch_select=False, norm=True, plot=False, test=False, from_rep0=False,
                       num_reps_train=1, num_reps_test=1, mult=1):
     data_pkg = mne.read_epochs_eeglab(PATH)
     events = _get_event(data_pkg.events, data_pkg.event_id)
@@ -484,23 +484,33 @@ def _read_data_strat2(PATH, CLASS, ch_select=False, norm=True, plot=False, test=
     for label in [4, 16, 32, 64, 128, 8]:
         inds = list(np.where(events == label)[0])
         if test is False:
-            for rep in range(num_reps_train):
-                combinations = list(itertools.combinations(inds, rep + 1))
-                if rep == 0:
-                    old = combinations.copy()
-                    for i in range(mult - 1):
-                        combinations.extend(old)
-                else:
-                    random.shuffle(combinations)
-                    combinations = combinations[:len(inds)*mult]
-                print(f'label: {label}. rep: {rep}. len: {len(combinations)}.')
+            if from_rep0 is True:
+                for rep in range(num_reps_train):
+                    combinations = list(itertools.combinations(inds, rep + 1))
+                    if rep == 0:
+                        old = combinations.copy()
+                        for i in range(mult - 1):
+                            combinations.extend(old)
+                    else:
+                        random.shuffle(combinations)
+                        combinations = combinations[:len(inds)*mult]
+                    print(f'label: {label}. rep: {rep}. len: {len(combinations)}.')
+                    for combo in combinations:
+                        X_ave.append(np.mean(X[list(combo)], axis=0))
+                        Y_ave.append(CLASS[str(label)])
+                        events_new.append(label)
+            else:
+                combinations = list(itertools.combinations(inds, num_reps_train))
+                random.shuffle(combinations)
+                combinations = combinations[:len(inds) * mult]
                 for combo in combinations:
                     X_ave.append(np.mean(X[list(combo)], axis=0))
                     Y_ave.append(CLASS[str(label)])
                     events_new.append(label)
+                print(f'label: {label}. rep: {num_reps_train}. len: {len(combinations)}.')
         else:
             for i in range(len(inds) - num_reps_test):
-                X_ave.append(np.mean(X[i:i + num_reps_test], axis=0))
+                X_ave.append(np.mean(X[inds[i:]], axis=0))
                 Y_ave.append(CLASS[str(label)])
                 events_new.append(label)
     X_ave = np.array(X_ave)

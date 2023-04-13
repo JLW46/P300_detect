@@ -6,6 +6,7 @@ import scipy
 import mne
 import matplotlib.pyplot as plt
 import sklearn.metrics
+import csv
 
 import util_preprocessing
 import util_tf
@@ -411,27 +412,22 @@ def _run_cnn_torch(epochs=1):
         num_ch = 64
     else:
         num_ch = len(CH_SELECT)
-    for sbj in ['01', '02', '03', '04', '06', '07', '08', '09']:
-    # for sbj in ['04', '06', '07', '08', '09']:
+    result_to_save = []
+    # for sbj in ['01', '02', '03', '04', '06', '07', '08', '09']:
+    for sbj in ['01']:
         # create TRAIN
         TRAIN = []
         for set in ['_01', '_02', '_03', '_04', '_05', '_06']:
             TRAIN.append(sbj + set + '.set')
         # run
-        for item in TRAIN:
-        # if True:
-        #     TEST = ['07_01.set']
-            TEST = [item]
-            # X_train, Y_train, X_test, Y_test, class_weights, events_train, \
-            # sample_weights_train, sample_weights_test = util_preprocessing._build_dataset_eeglab(FOLDER=FOLDER, CLASS=CLASS,
-            #                                                                                      TRAIN=TRAIN, TEST=TEST,
-            #                                                                                      ch_last=False,
-            #                                                                                      trainset_ave=epochs,
-            #                                                                                      testset_ave=epochs,
-            #                                                                                      ch_select=CH_SELECT,
-            #                                                                                      rep=4)
+
+        # for item in TRAIN:
+        #     TEST = [item]
+        if True:
+            TEST = ['01_01.set']
+
             X_train, Y_train, X_test, Y_test = util_preprocessing._build_dataset_strat2(FOLDER, TRAIN, TEST, CLASS,
-                                                                     ch_select=CH_SELECT, rep_train=2, rep_test=2,
+                                                                     ch_select=CH_SELECT, rep_train=epochs, rep_test=epochs,
                                                                                         mult=10, from_rep0=False)
             # transpose to ch-first for torch
             # X_train = np.transpose(X_train, (0, 3, 1, 2))
@@ -457,7 +453,17 @@ def _run_cnn_torch(epochs=1):
             test_loader = torch.utils.data.DataLoader(data_set_test, batch_size=b_size, shuffle=False, num_workers=0)
 
 
-            fitted_model = util_torch._fit(model, train_loader=train_loader, val_loader=val_loader, test_loader=test_loader)
+            fitted_model, out = util_torch._fit(model, train_loader=train_loader, val_loader=val_loader, test_loader=test_loader)
+
+            result_to_save.append([TEST[0].split('.')[0], epochs,
+                                   out['loss'], out['acc'], out['prec'], out['recall'], out['f1']])
+
+    with open('results/torch_eegnet_0ch.csv', 'w', encoding='UTF8', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['test', 'epochs', 'loss', 'acc', 'prec', 'recall', 'f1'])
+        for row in result_to_save:
+            writer.writerow(row)
+    f.close()
 
     return
 
@@ -547,4 +553,4 @@ def _run_csp_lda(display=False, epochs=1):
 #     _run_cnn_test2(epochs=i)
 #     _run_cnn_torch(epochs=6)
 # _run_cnn_test2(epochs=6)
-_run_cnn_torch(epochs=6)
+_run_cnn_torch(epochs=2)
