@@ -81,18 +81,41 @@ class EEGNET(nn.Module):
 
 
 class VIT(nn.Module):
-    def __init__(self, eeg_ch, heads):
+    def __init__(self, num_eegch, num_heads, num_layers):
         # in_shape = [C_ch, H_eegch, W_time] [1, 64, 125]
-        super(EEGNET, self).__init__()
-        self.num_projected_features = 128
-        self.qkv_len = 32
-        self.h = eeg_ch
-        self.num_heads = heads
+        super(VIT, self).__init__()
+        self.num_projected_features = 64
+        self.qkv_len = 16
+        self.scale = self.qkv_len**(-0.5)
+        self.h = num_eegch
+        self.num_heads = num_heads
+        self.num_layers = num_layers
         self.p = 5
         self.projection = nn.Linear(self.h*25, self.num_projected_features)
         self.cls_token = nn.Parameter(torch.randn(1, 1, self.num_projected_features))
         self.pe = nn.Parameter(torch.randn(1, self.p + 1, self.num_projected_features))
-        self.make_qkv = nn.Linear(self.num_projected_features, self.qkv_len*self.num_heads)
+
+        self.transformer_layers = nn.ModuleList([])
+        for i in range(self.num_layers):
+            self.transformer_layers.append(nn.ModuleList([
+                nn.Linear(self.num_projected_features, 3 * self.qkv_len * self.num_heads), # make qkv
+                nn.Softmax(dim=-1), # scaled dot product att softmax
+                nn.Linear(self.num_heads * self.qkv_len, self.num_projected_features), # multi head out
+                nn.LayerNorm(self.num_projected_features),
+                nn.LayerNorm(self.num_projected_features),
+                nn.Sequential(nn.Linear(self.num_projected_features, 2*self.num_projected_features),
+                              nn.GELU(),
+                              nn.Dropout(0.25),
+                              nn.Linear(2*self.num_projected_features, self.num_projected_features),
+                              nn.Dropout(0.25))
+            ]))
+        self.MLP_head = nn.Sequential(nn.LayerNorm(self.num_projected_features),
+                                      nn.Dropout(0.5),
+                                      nn.Linear(self.num_projected_features, 2),
+                                      nn.Softmax(dim=-1))
+        # self.make_qkv = nn.Linear(self.num_projected_features, 3 * self.qkv_len * self.num_heads),
+        # self.softmax = nn.Softmax(dim=-1),
+        # self.multi_head_linear = nn.Linear(self.num_heads * self.qkv_len, self.num_projected_features)
 
     def forward(self, x):
         b = x.size()[0]
@@ -102,18 +125,34 @@ class VIT(nn.Module):
         x = self.projection(x)
         cls_token = self.cls_token.repeat(b, 1, 1)
         x = torch.cat((cls_token, x), dim=1)
-        x = x + self.pe # [b, p+1, projected_len]
+        x = x + self.pe # embedded_patches [b, p+1, projected_len]
         # transformer
-        self.make_qkv(x) # [b, ]
+        for make_qkv, softmax, multi_head_out, layer_norm_1, layer_norm_2, MLP in self.transformer_layers:
+            ##### QKV #####
+            qkv = make_qkv(layer_norm_1(x)).chunk(3, dim=-1) # [b, p+1, qkv_len*num_heads]*3
+            # q: [b, p+1, qkv_len*num_heads] -> [b, p+1, num_heads, qkv_len] -> [b, num_heads, p+1, qkv_len]
+            q = qkv[0].reshape((b, self.p + 1, self.num_heads, self.qkv_len)).transpose(1, 2)
+            # k: [b, p+1, qkv_len*num_heads] -> [b, p+1, num_heads, qkv_len] -> [b, num_heads, p+1, qkv_len] -> [b, num_heads, qkv_len, p+1]
+            k = qkv[1].reshape((b, self.p + 1, self.num_heads, self.qkv_len)).transpose(1, 2).transpose(2, 3)
+            # v: [b, p+1, qkv_len*num_heads] -> [b, p+1, num_heads, qkv_len] -> [b, num_heads, p+1, qkv_len]
+            v = qkv[2].reshape((b, self.p + 1, self.num_heads, self.qkv_len)).transpose(1, 2)
+            ##### Scaled Dot-Product Att #####
+            # [b, num_heads, p+1, qkv_len] X [b, num_heads, qkv_len, p+1] X [b, num_heads, p+1, qkv_len] -> [b, num_heads, p+1, qkv_len]
+            scaled_dot_produc_att = torch.matmul(softmax(torch.matmul(q, k)*self.scale), v)
+            # [b, num_heads, p+1, qkv_len] -> [b, p+1, num_heads*qkv_len] -> [b, p+1, projected_len]
+            multi_head_att = multi_head_out(scaled_dot_produc_att.transpose(1, 2).reshape((b, self.p + 1, self.num_heads*self.qkv_len)))
+            x = multi_head_att + x
+            ##### MLP #####
+            x = MLP(layer_norm_2(x)) + x
+        out = self.MLP_head(x[:, 0, :])
+        return out
 
-        return x
-
-a = torch.randn(4, 2, 10)
-print(a.size())
-print(a[0, 0, :])
-a = torch.chunk(a, chunks=5, dim=-1)
-print(a[0].size())
-print(a[0][0, 0, :])
+# a = torch.randn(10, 3, 2, 4)
+# print(a[0, 1, 1, :])
+# a = a.transpose(1, 2) # [10, 2, 3, 4]
+# print(a[0, 1, 1, :])
+# a = a.reshape(10, 2, 12)
+# print(a[0, 1, :])
 
 
 

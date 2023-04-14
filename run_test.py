@@ -440,7 +440,8 @@ def _run_cnn_torch(epochs=1, flag1=True):
                 print(np.sum(Y_train, axis=0))
                 print(np.sum(Y_test, axis=0))
 
-                model = util_torch.EEGNET(eeg_ch=num_ch)
+                # model = util_torch.EEGNET(eeg_ch=num_ch)
+                model = util_torch.VIT(num_eegch=num_ch, num_heads=4, num_layers=2)
                 print(model)
                 data_set_train = util_torch.EegData(X_train, Y_train)
                 data_set_test = util_torch.EegData(X_test, Y_test)
@@ -458,8 +459,9 @@ def _run_cnn_torch(epochs=1, flag1=True):
 
                 result_to_save.append([TEST[0].split('.')[0], epochs,
                                        out['loss'], out['acc'], out['prec'], out['recall'], out['f1']])
-
-    with open('results/torch_eegnet_0ch.csv', 'w', encoding='UTF8', newline='') as f:
+    # save_name = 'results/torch_eegnet_0ch.csv'
+    save_name = 'results/torch_vit_0ch.csv'
+    with open(save_name, 'w', encoding='UTF8', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['test', 'epochs', 'loss', 'acc', 'prec', 'recall', 'f1'])
         for row in result_to_save:
