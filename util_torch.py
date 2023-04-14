@@ -81,22 +81,40 @@ class EEGNET(nn.Module):
 
 
 class VIT(nn.Module):
-    def __init__(self, eeg_ch):
+    def __init__(self, eeg_ch, heads):
         # in_shape = [C_ch, H_eegch, W_time] [1, 64, 125]
         super(EEGNET, self).__init__()
+        self.num_projected_features = 128
+        self.qkv_len = 32
         self.h = eeg_ch
-        self.projection = nn.Linear(self.h*25, 128)
-
+        self.num_heads = heads
+        self.p = 5
+        self.projection = nn.Linear(self.h*25, self.num_projected_features)
+        self.cls_token = nn.Parameter(torch.randn(1, 1, self.num_projected_features))
+        self.pe = nn.Parameter(torch.randn(1, self.p + 1, self.num_projected_features))
+        self.make_qkv = nn.Linear(self.num_projected_features, self.qkv_len*self.num_heads)
 
     def forward(self, x):
-
-        # Patching x[b, c, h, w=125] --> [b, p, f]
-        x = torch.transpose(torch.reshape(x, (-1, 1, self.h, 5, 25)), 3, 4)
-        x = torch.transpose(torch.reshape(x, (-1, self.h*25, 5)), 1, 2)
+        b = x.size()[0]
+        # Patching and positional embedding x[b, c, h, w=125] --> [b, p + 1, f]
+        x = torch.transpose(torch.reshape(x, (-1, 1, self.h, self.p, 25)), 3, 4)
+        x = torch.transpose(torch.reshape(x, (-1, self.h*25, self.p)), 1, 2) # [b, p, h*25]
         x = self.projection(x)
-
+        cls_token = self.cls_token.repeat(b, 1, 1)
+        x = torch.cat((cls_token, x), dim=1)
+        x = x + self.pe # [b, p+1, projected_len]
+        # transformer
+        self.make_qkv(x) # [b, ]
 
         return x
+
+a = torch.randn(4, 2, 10)
+print(a.size())
+print(a[0, 0, :])
+a = torch.chunk(a, chunks=5, dim=-1)
+print(a[0].size())
+print(a[0][0, 0, :])
+
 
 
 class EegData(torch.utils.data.Dataset):
@@ -125,10 +143,11 @@ class EegData(torch.utils.data.Dataset):
 
 def _fit(model, train_loader, val_loader, test_loader):
     # optimizer = optim.SGD(model.parameters(), lr=0.0005, momentum=0.9, weight_decay=0.05)
-    optimizer = optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.0)
-    criterion = nn.CrossEntropyLoss(label_smoothing=0.0)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print(device)
+    optimizer = optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.0)
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.0)
+    criterion.to(device)
     model.to(device)
     log_train_loss = []
     log_val_loss = []
@@ -136,7 +155,7 @@ def _fit(model, train_loader, val_loader, test_loader):
     log_train_acc = []
     log_val_acc = []
     log_test_acc = []
-    for epoch in range(10):
+    for epoch in range(200):
         running_train_loss = 0
         running_val_loss = 0
         running_test_loss = 0

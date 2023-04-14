@@ -396,7 +396,7 @@ def _run_cnn_test2(epochs=1):
 
     return
 
-def _run_cnn_torch(epochs=1):
+def _run_cnn_torch(epochs=1, flag1=True):
     CLASS = {
         '4': [0, 1],  # nt estim
         '8': [1, 0],  # t estim
@@ -413,50 +413,51 @@ def _run_cnn_torch(epochs=1):
     else:
         num_ch = len(CH_SELECT)
     result_to_save = []
-    # for sbj in ['01', '02', '03', '04', '06', '07', '08', '09']:
-    for sbj in ['01']:
-        # create TRAIN
-        TRAIN = []
-        for set in ['_01', '_02', '_03', '_04', '_05', '_06']:
-            TRAIN.append(sbj + set + '.set')
-        # run
+    for epochs in [1, 2, 3, 4, 5, 6]:
+        for sbj in ['01', '02', '03', '04', '06', '07', '08', '09']:
+        # for sbj in ['01']:
+            # create TRAIN
+            TRAIN = []
+            for set in ['_01', '_02', '_03', '_04', '_05', '_06']:
+                TRAIN.append(sbj + set + '.set')
+            # run
 
-        # for item in TRAIN:
-        #     TEST = [item]
-        if True:
-            TEST = ['01_01.set']
+            for item in TRAIN:
+                TEST = [item]
+            # if True:
+            #     TEST = ['01_01.set']
 
-            X_train, Y_train, X_test, Y_test = util_preprocessing._build_dataset_strat2(FOLDER, TRAIN, TEST, CLASS,
-                                                                     ch_select=CH_SELECT, rep_train=epochs, rep_test=epochs,
-                                                                                        mult=10, from_rep0=False)
-            # transpose to ch-first for torch
-            # X_train = np.transpose(X_train, (0, 3, 1, 2))
-            print(np.shape(X_train))
-            print(np.shape(Y_train))
-            # X_test = np.transpose(X_test, (0, 3, 1, 2))
-            print(np.shape(X_test))
-            print(np.shape(Y_test))
-            print(np.sum(Y_train, axis=0))
-            print(np.sum(Y_test, axis=0))
+                X_train, Y_train, X_test, Y_test = util_preprocessing._build_dataset_strat2(FOLDER, TRAIN, TEST, CLASS,
+                                                                         ch_select=CH_SELECT, rep_train=epochs, rep_test=epochs,
+                                                                                            mult=10, from_rep0=False)
+                # transpose to ch-first for torch
+                # X_train = np.transpose(X_train, (0, 3, 1, 2))
+                print(np.shape(X_train))
+                print(np.shape(Y_train))
+                # X_test = np.transpose(X_test, (0, 3, 1, 2))
+                print(np.shape(X_test))
+                print(np.shape(Y_test))
+                print(np.sum(Y_train, axis=0))
+                print(np.sum(Y_test, axis=0))
 
-            model = util_torch.EEGNET(eeg_ch=num_ch)
-            print(model)
-            data_set_train = util_torch.EegData(X_train, Y_train)
-            data_set_test = util_torch.EegData(X_test, Y_test)
-            train_set, val_set = torch.utils.data.random_split(data_set_train, [0.8, 0.2])
+                model = util_torch.EEGNET(eeg_ch=num_ch)
+                print(model)
+                data_set_train = util_torch.EegData(X_train, Y_train)
+                data_set_test = util_torch.EegData(X_test, Y_test)
+                train_set, val_set = torch.utils.data.random_split(data_set_train, [0.8, 0.2])
 
-            data_lens = [len(train_set), len(val_set), len(data_set_test)]
-            print(data_lens)
-            b_size = 16
-            train_loader = torch.utils.data.DataLoader(train_set, batch_size=b_size, shuffle=True, num_workers=0)
-            val_loader = torch.utils.data.DataLoader(val_set, batch_size=b_size, shuffle=False, num_workers=0)
-            test_loader = torch.utils.data.DataLoader(data_set_test, batch_size=b_size, shuffle=False, num_workers=0)
+                data_lens = [len(train_set), len(val_set), len(data_set_test)]
+                print(data_lens)
+                b_size = 16
+                train_loader = torch.utils.data.DataLoader(train_set, batch_size=b_size, shuffle=True, num_workers=0)
+                val_loader = torch.utils.data.DataLoader(val_set, batch_size=b_size, shuffle=False, num_workers=0)
+                test_loader = torch.utils.data.DataLoader(data_set_test, batch_size=b_size, shuffle=False, num_workers=0)
 
 
-            fitted_model, out = util_torch._fit(model, train_loader=train_loader, val_loader=val_loader, test_loader=test_loader)
+                fitted_model, out = util_torch._fit(model, train_loader=train_loader, val_loader=val_loader, test_loader=test_loader)
 
-            result_to_save.append([TEST[0].split('.')[0], epochs,
-                                   out['loss'], out['acc'], out['prec'], out['recall'], out['f1']])
+                result_to_save.append([TEST[0].split('.')[0], epochs,
+                                       out['loss'], out['acc'], out['prec'], out['recall'], out['f1']])
 
     with open('results/torch_eegnet_0ch.csv', 'w', encoding='UTF8', newline='') as f:
         writer = csv.writer(f)
@@ -551,6 +552,6 @@ def _run_csp_lda(display=False, epochs=1):
 # for i in [5, 6]:
 #     _run_csp_lda(display=False, epochs=i)
 #     _run_cnn_test2(epochs=i)
-#     _run_cnn_torch(epochs=6)
+#     _run_cnn_torch()
 # _run_cnn_test2(epochs=6)
-_run_cnn_torch(epochs=2)
+_run_cnn_torch()
