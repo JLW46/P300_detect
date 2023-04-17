@@ -1002,13 +1002,41 @@ def _write_csv():
     return
 
 
+def _plot_torch_acc(path):
+    fig = plt.figure()
+    header = True
+    with open(path) as csv_file:
+        csv_reader = csv.reader(csv_file)
+        line_count = 0
+        acc_results = [[], [], [], [], [], []]
+        auc_results = []
+        f1_results = []
+        for row in csv_reader:
+            if header is True:
+                header = False
+                pass
+            else:
+                acc_results[int(row[1]) - 1].append(float(row[3]))
+        # acc_results = np.array(acc_results)
+    ax1 = fig.add_subplot(111)
+    # ax1.set_title(str('Subject ' + SBJ_PLOT[0]))
+    ax1.set_ylabel('ACC')
+    ax1.set_xlabel('Repetition')
+    ax1.set_ylim([0.0, 1])
+    ax1.grid()
+    box_dict_1 = ax1.boxplot(acc_results, labels=['1', '2', '3', '4', '5', '6'],
+                             sym='+', positions=[1, 2, 3, 4, 5, 6], patch_artist=True, showmeans=True)
+    plt.show()
+
+# _plot_torch_acc('results/torch_vit_0ch.csv')
+_plot_torch_acc('results/torch_eegnet_0ch.csv')
 # _epoch_plot(SBJ_PLOT=['01', '02', '03', '04', '06', '07', '08', '09'])
 # _epoch_plot_methods(SBJ_PLOT=['01', '02', '03', '04', '06', '07', '08', '09'])
 # _plot_prediction(SBJ_PLOT=['02', '04'])
 # _signal_plot(SBJ_PLOT=['01', '02', '03', '04', '06', '07', '08', '09'], CH=27)
 # _signal_plot(SBJ_PLOT=['01'], CH=27)
 # result = _read_acc('D:/Code/PycharmProjects/P300_detect/results_noICA_eegnet_0ch_epoch_1/')
-_write_csv()
+# _write_csv()
 # with open('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_eegnet_0ch_epoch_1/01_01.json') as json_file:
 # with open('D:/Code/PycharmProjects/P300_detect/results_noICA_loss_custom_0ch_epoch_4/01_01.json') as json_file:
 #     data = json.load(json_file)

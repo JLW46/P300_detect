@@ -426,10 +426,11 @@ def _run_cnn_torch(epochs=1, flag1=True):
                 TEST = [item]
             # if True:
             #     TEST = ['01_01.set']
-
+                mults = [10, 15, 20, 25, 30, 35]
+                b_sizes = [24, 32, 40, 48, 56, 64]
                 X_train, Y_train, X_test, Y_test = util_preprocessing._build_dataset_strat2(FOLDER, TRAIN, TEST, CLASS,
                                                                          ch_select=CH_SELECT, rep_train=epochs, rep_test=epochs,
-                                                                                            mult=10, from_rep0=False)
+                                                                                            mult=mults[epochs - 1], from_rep0=False)
                 # transpose to ch-first for torch
                 # X_train = np.transpose(X_train, (0, 3, 1, 2))
                 print(np.shape(X_train))
@@ -442,14 +443,14 @@ def _run_cnn_torch(epochs=1, flag1=True):
 
                 # model = util_torch.EEGNET(eeg_ch=num_ch)
                 model = util_torch.VIT(num_eegch=num_ch, num_heads=4, num_layers=2)
-                print(model)
+                util_torch._model_summary(model)
                 data_set_train = util_torch.EegData(X_train, Y_train)
                 data_set_test = util_torch.EegData(X_test, Y_test)
                 train_set, val_set = torch.utils.data.random_split(data_set_train, [0.8, 0.2])
 
                 data_lens = [len(train_set), len(val_set), len(data_set_test)]
                 print(data_lens)
-                b_size = 16
+                b_size = b_sizes[epochs - 1]
                 train_loader = torch.utils.data.DataLoader(train_set, batch_size=b_size, shuffle=True, num_workers=0)
                 val_loader = torch.utils.data.DataLoader(val_set, batch_size=b_size, shuffle=False, num_workers=0)
                 test_loader = torch.utils.data.DataLoader(data_set_test, batch_size=b_size, shuffle=False, num_workers=0)
