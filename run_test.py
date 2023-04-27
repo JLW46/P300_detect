@@ -198,8 +198,8 @@ TEST = [
 
 
 
-FOLDER = r'D:/Code/PycharmProjects/P300_detect/data/SEP BCI 125 0-20 no ICA'
-# FOLDER = r'D:/Code/PycharmProjects/P300_detect/data/SEP BCI 125 0-20 ICA'
+# FOLDER = r'D:/Code/PycharmProjects/P300_detect/data/SEP BCI 125 0-20 no ICA'
+FOLDER = r'D:\Code\PycharmProjects\P300_detect\data\SEP BCI 125 0-20 with noise'
 def _run_cnn_test():
     # out_len = 1, AUC
     CLASS = {

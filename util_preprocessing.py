@@ -537,6 +537,104 @@ def _read_data_strat2(PATH, CLASS, ch_select=False, norm=True, plot=False, test=
         events_out = events_new
     return X_out, Y_out, events_out
 
+def _read_data_strat3(PATH, CLASS, ch_select=False, norm=True, plot=False, test=False, from_rep0=False,
+                      num_reps_train=1, num_reps_test=1, mult=1):
+    data_pkg = mne.read_epochs_eeglab(PATH)
+    events = _get_event(data_pkg.events, data_pkg.event_id)
+    data = data_pkg._data
+    if ch_select is not False:
+        CH = len(ch_select)
+    else:
+        CH = np.shape(data)[1]
+    T = np.shape(data)[2]
+    T_re = 100
+    X = []
+    Y = []
+    events_new = []
+    for i in range(np.shape(data)[0]):
+        Y.append(CLASS[str(events[i])])
+        x = data[i, :, :]
+        if ch_select is False:
+            pass
+        else:
+            x = x[ch_select, :]
+        if norm:
+            # remove baseline by [-0.2, 0.0]s
+            x_norm = (x - np.repeat(np.reshape(np.mean(x[:, :25], axis=1), (CH, 1)), T, axis=1)) / (
+                # np.repeat(np.reshape(np.std(x[:, -T_re:], axis=1), (CH, 1)), T, axis=1))
+                # np.repeat(np.reshape(np.std(x, axis=1), (CH, 1)), T, axis=1))
+                0.000001)
+            x = x_norm
+            if plot is False:
+                # x = x[:, -T_re:-T_re + 75]
+                x = x[:, -125:]
+            elif plot is True:
+                pass
+        X.append(np.reshape(x, (1, np.shape(x)[0], np.shape(x)[1])))
+    X = np.array(X)
+    Y = np.array(Y)
+
+    targets = [8]
+    non_targets = [4]
+    non_targets_noise = []
+    X_ave = []
+    Y_ave = []
+    for label in [4, 16, 32, 64, 128, 8]:
+        inds = list(np.where(events == label)[0])
+        if test is False:
+            if from_rep0 is True:
+                for rep in range(num_reps_train):
+                    combinations = list(itertools.combinations(inds, rep + 1))
+                    if rep == 0:
+                        old = combinations.copy()
+                        for i in range(mult - 1):
+                            combinations.extend(old)
+                    else:
+                        random.shuffle(combinations)
+                        combinations = combinations[:len(inds)*mult]
+                    print(f'label: {label}. rep: {rep}. len: {len(combinations)}.')
+                    for combo in combinations:
+                        X_ave.append(np.mean(X[list(combo)], axis=0))
+                        Y_ave.append(CLASS[str(label)])
+                        events_new.append(label)
+            else:
+                combinations = list(itertools.combinations(inds, num_reps_train))
+                random.shuffle(combinations)
+                combinations = combinations[:len(inds) * mult]
+                for combo in combinations:
+                    X_ave.append(np.mean(X[list(combo)], axis=0))
+                    Y_ave.append(CLASS[str(label)])
+                    events_new.append(label)
+                print(f'label: {label}. rep: {num_reps_train}. len: {len(combinations)}.')
+        else:
+            for i in range(len(inds) - num_reps_test):
+                X_ave.append(np.mean(X[inds[i:]], axis=0))
+                Y_ave.append(CLASS[str(label)])
+                events_new.append(label)
+    X_ave = np.array(X_ave)
+    Y_ave = np.array(Y_ave)
+    events_new = np.array(events_new)
+    if np.shape(Y_ave)[1] > 1:
+        pos_ind = np.where(Y_ave[:, 0] == 1)[0]
+    else:
+        pos_ind = np.where(Y_ave == 1)[0]
+    scale = int((np.shape(Y_ave)[0] - len(pos_ind)) / len(pos_ind)) - 1
+    if scale > 0:
+        for i in range(scale):
+            X_ave = np.concatenate([X_ave, X_ave[pos_ind]])
+            Y_ave = np.concatenate([Y_ave, Y_ave[pos_ind]])
+            events_new = np.concatenate([events_new, events_new[pos_ind]])
+    print('total: ' + str(len(Y_ave)) + '. target: ' + str((scale + 1)*len(pos_ind)))
+    if plot is True:
+        X_out = X
+        Y_out = Y
+        events_out = np.array(events)
+    else:
+        X_out = X_ave
+        Y_out = Y_ave
+        events_out = events_new
+    return X_out, Y_out, events_out
+
 def _make_average(X, Y, CLASS, events, fold=1, epochs=1, consec=False):
     # for i in range(len(CLASS)):
 

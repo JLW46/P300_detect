@@ -281,8 +281,9 @@ def _fit(model, train_loader, val_loader, test_loader):
               f'acc: [{train_acc:.4f} {val_acc:.4f} {test_acc:.4f}]')
         # Early stopping
         if len(log_val_loss) > 20:
-            check = np.array(log_val_loss[-20:])
-            if (np.amax(check) - np.amin(check)) < 0.0005:
+            vals = np.array(log_val_loss[-20:])
+            trains = np.array(log_train_loss[-20:])
+            if ((np.amax(vals) - np.amin(vals)) < 0.0005) or ((np.amax(trains) - np.amin(trains)) < 0.0005):
                 print('Triggered early stopping.')
                 break
     tp = 0
