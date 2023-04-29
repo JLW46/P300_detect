@@ -292,7 +292,7 @@ def _build_dataset_strat2(FOLDER, TRAIN, TEST, CLASS, ch_select=False, rep_train
         if file_name in TRAIN or file_name in TEST:
             PATH = os.path.join(FOLDER, file_name)
             if (file_name in TRAIN) and (file_name not in TEST):
-                X, Y, events = _read_data_strat2(PATH=PATH, CLASS=CLASS,
+                X, Y, events = _read_data_strat3(PATH=PATH, CLASS=CLASS,
                                                  ch_select=ch_select, norm=True, plot=False,
                                                  test=False, from_rep0=from_rep0,
                                                  num_reps_train=rep_train, num_reps_test=rep_test, mult=mult)
@@ -305,7 +305,7 @@ def _build_dataset_strat2(FOLDER, TRAIN, TEST, CLASS, ch_select=False, rep_train
                     Y_train = np.concatenate([Y_train, Y], axis=0)
                     events_train = np.concatenate([events_train, events])
             elif file_name in TEST:
-                X, Y, events = _read_data_strat2(PATH=PATH, CLASS=CLASS,
+                X, Y, events = _read_data_strat3(PATH=PATH, CLASS=CLASS,
                                                  ch_select=ch_select, norm=True, plot=False,
                                                  test=True, from_rep0=from_rep0,
                                                  num_reps_train=rep_train, num_reps_test=rep_test, mult=mult)
@@ -538,16 +538,22 @@ def _read_data_strat2(PATH, CLASS, ch_select=False, norm=True, plot=False, test=
     return X_out, Y_out, events_out
 
 def _read_data_strat3(PATH, CLASS, ch_select=False, norm=True, plot=False, test=False, from_rep0=False,
-                      num_reps_train=1, num_reps_test=1, mult=1):
+                      num_reps=1, num_reps=1, mult=1):
     data_pkg = mne.read_epochs_eeglab(PATH)
     events = _get_event(data_pkg.events, data_pkg.event_id)
+    event_types = np.unique(np.array(events)).tolist()
+    targets = [8]
+    non_targets = [4]
+    non_targets_extended = event_types
+    for event in [8, 32, 128]:
+        if event in non_targets_extended:
+            non_targets_extended.remove(event)
     data = data_pkg._data
     if ch_select is not False:
         CH = len(ch_select)
     else:
         CH = np.shape(data)[1]
     T = np.shape(data)[2]
-    T_re = 100
     X = []
     Y = []
     events_new = []
@@ -574,11 +580,36 @@ def _read_data_strat3(PATH, CLASS, ch_select=False, norm=True, plot=False, test=
     X = np.array(X)
     Y = np.array(Y)
 
-    targets = [8]
-    non_targets = [4]
-    non_targets_noise = []
-    X_ave = []
-    Y_ave = []
+    X_train = []
+    Y_train = []
+    X_test = []
+    Y_test = []
+    X_test_ext = []
+    Y_test_ext = []
+    if test is False:
+        for label in targets:
+            inds = list(np.where(events == label)[0])
+            combinations = list(itertools.combinations(inds, num_reps))
+            random.shuffle(combinations)
+            combinations = combinations[:len(inds) * mult]
+            for combo in combinations:
+                X_train.append(np.mean(X[list(combo)], axis=0))
+                Y_train.append([1, 0])
+                events_new.append(label)
+        for label in non_targets:
+            inds = list(np.where(events == label)[0])
+            combinations = list(itertools.combinations(inds, num_reps))
+            random.shuffle(combinations)
+            combinations = combinations[:len(inds) * mult]
+            for combo in combinations:
+                X_train.append(np.mean(X[list(combo)], axis=0))
+                Y_train.append([0, 1])
+                events_new.append(label)
+    elif test is True:
+        
+
+
+
     for label in [4, 16, 32, 64, 128, 8]:
         inds = list(np.where(events == label)[0])
         if test is False:

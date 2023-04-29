@@ -428,9 +428,15 @@ def _run_cnn_torch(epochs=1, flag1=True):
             #     TEST = ['01_01.set']
                 mults = [10, 15, 20, 25, 30, 35]
                 b_sizes = [24, 32, 40, 48, 56, 64]
-                X_train, Y_train, X_test, Y_test = util_preprocessing._build_dataset_strat2(FOLDER, TRAIN, TEST, CLASS,
-                                                                         ch_select=CH_SELECT, rep_train=epochs, rep_test=epochs,
-                                                                                            mult=mults[epochs - 1], from_rep0=False)
+                # X_train, Y_train, X_test, Y_test = util_preprocessing._build_dataset_strat2(FOLDER, TRAIN, TEST, CLASS,
+                #                                                          ch_select=CH_SELECT, rep_train=epochs, rep_test=epochs,
+                #                                                                             mult=mults[epochs - 1], from_rep0=False)
+                X_train, Y_train, X_test, Y_test, X_test_ext, Y_test_ext = util_preprocessing._build_dataset_strat2(FOLDER, TRAIN, TEST, CLASS,
+                                                                                            ch_select=CH_SELECT,
+                                                                                            rep_train=epochs,
+                                                                                            rep_test=epochs,
+                                                                                            mult=mults[epochs - 1],
+                                                                                            from_rep0=False)
                 # transpose to ch-first for torch
                 # X_train = np.transpose(X_train, (0, 3, 1, 2))
                 print(np.shape(X_train))
