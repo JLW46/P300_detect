@@ -5,6 +5,7 @@ import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
 import numpy as np
+import random
 import matplotlib.pyplot as plt
 
 
@@ -180,27 +181,78 @@ class EegData(torch.utils.data.Dataset):
         return sample
 
 
-def _fit(model, train_loader, val_loader, test_loader):
+def _manual_val_split(X, Y, ratio):
+    pos_ind = np.where(Y[:, 0] == 1)[0]
+    neg_ind = np.where(Y[:, 1] == 1)[0]
+    random.shuffle(pos_ind)
+    random.shuffle(neg_ind)
+    pos_train = pos_ind[:int(len(pos_ind) * ratio)]
+    pos_val = pos_ind[int(len(pos_ind) * ratio):]
+    neg_train = neg_ind[:int(len(neg_ind) * ratio)]
+    neg_val = neg_ind[int(len(neg_ind) * ratio):]
+    X_train = np.concatenate([X[pos_train], X[neg_train]], axis=0)
+    X_val = np.concatenate([X[pos_val], X[neg_val]], axis=0)
+    Y_train = np.concatenate([Y[pos_train], Y[neg_train]], axis=0)
+    Y_val = np.concatenate([Y[pos_val], Y[neg_val]], axis=0)
+    return X_train, Y_train, X_val, Y_val
+
+
+def _compute_matrics(preds, true, print_tpr=False):
+    TP = 0
+    TN = 0
+    FP = 0
+    FN = 0
+    for i in range(len(preds)):
+        if true[i] == 0:
+            if preds[i] == 0:
+                TP = TP + 1
+            else:
+                FN = FN + 1
+        else:
+            if preds[i] == 1:
+                TN = TN + 1
+            else:
+                FP = FP + 1
+    tpr = TP/(TP + FN)
+    tnr = TN/(TN + FP)
+    precision = TP/(TP + FP)
+    recall = TP/(TP + FN)
+    f1 = 2*(precision*recall)/(precision + recall)
+    balanced_acc = (tpr + tnr)/2
+    if print_tpr:
+        print(f'TPR: {tpr:.4f}. TNR: {tnr:.4f}. Precision: {precision:.4f}. Recall: {recall:.4f}.')
+    return f1, balanced_acc
+
+
+def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_weight):
     # optimizer = optim.SGD(model.parameters(), lr=0.0005, momentum=0.9, weight_decay=0.05)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print(device)
     optimizer = optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.0)
-    criterion = nn.CrossEntropyLoss(label_smoothing=0.0)
+    criterion = nn.CrossEntropyLoss(weight=class_weight, label_smoothing=0.0)
     criterion.to(device)
     model.to(device)
     log_train_loss = []
     log_val_loss = []
     log_test_loss = []
+    log_testext_loss = []
+    log_train_f1 = []
+    log_val_f1 = []
+    log_test_f1 = []
+    log_testext_f1 = []
     log_train_acc = []
     log_val_acc = []
     log_test_acc = []
+    log_testext_acc = []
     for epoch in range(200):
         running_train_loss = 0
         running_val_loss = 0
         running_test_loss = 0
+        running_testext_loss = 0
         train_outputs = None
         val_outputs = None
         test_outputs = None
+        testext_outputs = None
         for i_batch, data_batch in enumerate(train_loader):
             x = data_batch['x'].to(device)
             y = data_batch['y'].to(device)
@@ -218,14 +270,16 @@ def _fit(model, train_loader, val_loader, test_loader):
                 train_labels = torch.cat((train_labels, y), dim=0)
         _, train_predicts = torch.max(train_outputs, dim=1)
         _, train_labels = torch.max(train_labels, dim=1)
-        total = 0
-        correct = 0
-        for i, predict in enumerate(train_predicts):
-            total = total + 1
-            if predict == train_labels[i]:
-                correct = correct + 1
-        train_acc = correct/total
-        log_train_acc.append(train_acc)
+        f1, ba_acc = _compute_matrics(train_predicts, train_labels)
+        # total = 0
+        # correct = 0
+        # for i, predict in enumerate(train_predicts):
+        #     total = total + 1
+        #     if predict == train_labels[i]:
+        #         correct = correct + 1
+        # train_acc = correct/total
+        log_train_f1.append(f1)
+        log_train_acc.append(ba_acc)
         log_train_loss.append(running_train_loss/len(train_loader))
         if val_loader is not None:
             for data_batch in val_loader:
@@ -243,14 +297,16 @@ def _fit(model, train_loader, val_loader, test_loader):
                     val_labels = torch.cat((val_labels, y), dim=0)
             _, val_predicts = torch.max(val_outputs, dim=1)
             _, val_labels = torch.max(val_labels, dim=1)
-            total = 0
-            correct = 0
-            for i, predict in enumerate(val_predicts):
-                total = total + 1
-                if predict == val_labels[i]:
-                    correct = correct + 1
-            val_acc = correct / total
-            log_val_acc.append(val_acc)
+            f1, ba_acc = _compute_matrics(val_predicts, val_labels)
+            # total = 0
+            # correct = 0
+            # for i, predict in enumerate(val_predicts):
+            #     total = total + 1
+            #     if predict == val_labels[i]:
+            #         correct = correct + 1
+            # val_acc = correct / total
+            log_val_f1.append(f1)
+            log_val_acc.append(ba_acc)
             log_val_loss.append(running_val_loss/len(val_loader))
         if test_loader is not None:
             for data_batch in test_loader:
@@ -267,18 +323,48 @@ def _fit(model, train_loader, val_loader, test_loader):
                     test_labels = torch.cat((test_labels, y), dim=0)
             _, test_predicts = torch.max(test_outputs, dim=1)
             _, test_labels = torch.max(test_labels, dim=1)
-            total = 0
-            correct = 0
-            for i, predict in enumerate(test_predicts):
-                total = total + 1
-                if predict == test_labels[i]:
-                    correct = correct + 1
-            test_acc = correct/total
-            log_test_acc.append(test_acc)
+            f1, ba_acc = _compute_matrics(test_predicts, test_labels)
+            # total = 0
+            # correct = 0
+            # for i, predict in enumerate(test_predicts):
+            #     total = total + 1
+            #     if predict == test_labels[i]:
+            #         correct = correct + 1
+            # test_acc = correct/total
+            log_test_f1.append(f1)
+            log_test_acc.append(ba_acc)
             log_test_loss.append(running_test_loss / len(test_loader))
+        if testext_loader is not None:
+            for data_batch in testext_loader:
+                x = data_batch['x'].to(device)
+                y = data_batch['y'].to(device)
+                outputs = model(x)
+                testext_loss = criterion(outputs, y)
+                running_testext_loss +=testext_loss.item()
+                if testext_outputs is None:
+                    testext_outputs = outputs
+                    testext_labels = y
+                else:
+                    testext_outputs = torch.cat((testext_outputs, outputs), dim=0)
+                    testext_labels = torch.cat((testext_labels, y), dim=0)
+            _, testext_predicts = torch.max(testext_outputs, dim=1)
+            _, testext_labels = torch.max(testext_labels, dim=1)
+            f1, ba_acc = _compute_matrics(testext_predicts, testext_labels, print_tpr=True)
+            # total = 0
+            # correct = 0
+            # for i, predict in enumerate(test_predicts):
+            #     total = total + 1
+            #     if predict == test_labels[i]:
+            #         correct = correct + 1
+            # test_acc = correct/total
+            log_testext_f1.append(f1)
+            log_testext_acc.append(ba_acc)
+            log_testext_loss.append(running_testext_loss / len(testext_loader))
         print(f'epoch: {epoch} '
-              f'loss: [{running_train_loss/len(train_loader):.4f} {running_val_loss/len(val_loader):.4f} {running_test_loss/len(test_loader):.4f}] '
-              f'acc: [{train_acc:.4f} {val_acc:.4f} {test_acc:.4f}]')
+              f'loss: [{running_train_loss/len(train_loader):.4f} {running_val_loss/len(val_loader):.4f} '
+              f'{running_test_loss/len(test_loader):.4f} {running_testext_loss/len(testext_loader):.4f}] '
+              f'ba_acc: [{log_train_acc[-1]:.4f} {log_val_acc[-1]:.4f} {log_test_acc[-1]:.4f} {log_testext_acc[-1]:.4f}]'
+              f'f1: [{log_train_f1[-1]:.4f} {log_val_f1[-1]:.4f} {log_test_f1[-1]:.4f} {log_testext_f1[-1]:.4f}]')
         # Early stopping
         if len(log_val_loss) > 20:
             vals = np.array(log_val_loss[-20:])

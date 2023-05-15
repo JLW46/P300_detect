@@ -1028,8 +1028,56 @@ def _plot_torch_acc(path):
                              sym='+', positions=[1, 2, 3, 4, 5, 6], patch_artist=True, showmeans=True)
     plt.show()
 
+
+# N = np.arange(8, 15, 1)
+# # N = 10
+# p = 1
+# N_1 = N
+# N_2 = N*(N - 1)/2
+# N_3 = (N - 1)*(p*(N - 2)/(1))
+# N_4 = (N - 2)*(p*(N - 3)/(1))
+# N_5 = (N - 3)*(p*(N - 4)/(1))
+# N_6 = (N - 4)*(p*(N - 5)/(1))
+# N_6 = (N - 3)*(p*(N - 4)*(N - 5)/(2))
+# print([N_1, N_2, N_3, N_4, N_5, N_6])
+
+def schedule_1(N, b, k):
+    # b + k = num_trials
+    out = (N - b + 1)
+    for i in range(k):
+        out = out*(N - b - (i + 1))/(i + 1)
+    return out
+
+def schedule_2(N, b, k):
+    # b + k + 1 = num_trials
+    out = (N - b + 1)*(N - b)
+    for i in range(k):
+        out = out*(N - b - 1 - (i + 1))/(i + 1)
+    return out
+
+N = np.arange(7, 35, 2)
+N_4 = []
+trials = 4
+for n in N:
+    if n < 10:
+        N_4.append(schedule_1(n, 1, 5))
+    elif n < 11:
+        N_4.append(schedule_1(n, 2, 4))
+    elif n < 12:
+        N_4.append(schedule_1(n, 3, 3))
+    elif n < 13:
+        N_4.append(schedule_1(n, 4, 2))
+    else:
+        N_4.append(schedule_1(n, 4, 2))
+print(N)
+print(N_4)
+
+
+
+
+
 # _plot_torch_acc('results/torch_vit_0ch.csv')
-_plot_torch_acc('results/torch_eegnet_0ch.csv')
+# _plot_torch_acc('results/torch_eegnet_0ch.csv')
 # _epoch_plot(SBJ_PLOT=['01', '02', '03', '04', '06', '07', '08', '09'])
 # _epoch_plot_methods(SBJ_PLOT=['01', '02', '03', '04', '06', '07', '08', '09'])
 # _plot_prediction(SBJ_PLOT=['02', '04'])

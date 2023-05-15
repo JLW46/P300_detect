@@ -292,7 +292,7 @@ def _build_dataset_strat2(FOLDER, TRAIN, TEST, CLASS, ch_select=False, rep_train
         if file_name in TRAIN or file_name in TEST:
             PATH = os.path.join(FOLDER, file_name)
             if (file_name in TRAIN) and (file_name not in TEST):
-                X, Y, events = _read_data_strat3(PATH=PATH, CLASS=CLASS,
+                X, Y, events = _read_data_strat2(PATH=PATH, CLASS=CLASS,
                                                  ch_select=ch_select, norm=True, plot=False,
                                                  test=False, from_rep0=from_rep0,
                                                  num_reps_train=rep_train, num_reps_test=rep_test, mult=mult)
@@ -305,7 +305,7 @@ def _build_dataset_strat2(FOLDER, TRAIN, TEST, CLASS, ch_select=False, rep_train
                     Y_train = np.concatenate([Y_train, Y], axis=0)
                     events_train = np.concatenate([events_train, events])
             elif file_name in TEST:
-                X, Y, events = _read_data_strat3(PATH=PATH, CLASS=CLASS,
+                X, Y, events = _read_data_strat2(PATH=PATH, CLASS=CLASS,
                                                  ch_select=ch_select, norm=True, plot=False,
                                                  test=True, from_rep0=from_rep0,
                                                  num_reps_train=rep_train, num_reps_test=rep_test, mult=mult)
@@ -319,6 +319,45 @@ def _build_dataset_strat2(FOLDER, TRAIN, TEST, CLASS, ch_select=False, rep_train
                     events_test = np.concatenate([events_test, events])
 
     return X_train, Y_train, X_test, Y_test
+
+
+def _build_dataset_strat3(FOLDER, TRAIN, TEST, ch_select=False, num_reps=1):
+    files = os.listdir(FOLDER)
+    X_train = None
+    Y_train = None
+    X_test = None
+    Y_test = None
+    X_test_ext = None
+    Y_test_ext = None
+    events_train = None
+    events_test = None
+    for file_name in files:
+        if file_name in TRAIN or file_name in TEST:
+            PATH = os.path.join(FOLDER, file_name)
+            if (file_name in TRAIN) and (file_name not in TEST):
+                out = _read_data_strat3(PATH=PATH, ch_select=ch_select, norm=True, plot=False, test=False,
+                                        num_reps=num_reps)
+                if X_train is None:
+                    X_train = out['X_train']
+                    Y_train = out['Y_train']
+                else:
+                    X_train = np.concatenate([X_train, out['X_train']], axis=0)
+                    Y_train = np.concatenate([Y_train, out['Y_train']], axis=0)
+            elif file_name in TEST:
+                out = _read_data_strat3(PATH=PATH, ch_select=ch_select, norm=True, plot=False, test=True,
+                                        num_reps=num_reps)
+                if X_test is None:
+                    X_test = out['X_test']
+                    Y_test = out['Y_test']
+                    X_test_ext = out['X_test_ext']
+                    Y_test_ext = out['Y_test_ext']
+                else:
+                    X_test = np.concatenate([X_test, out['X_test']], axis=0)
+                    Y_test = np.concatenate([Y_test, out['Y_test']], axis=0)
+                    X_test_ext = np.concatenate([X_test, out['X_test_ext']], axis=0)
+                    Y_test_ext = np.concatenate([Y_test, out['Y_test_ext']], axis=0)
+
+    return X_train, Y_train, X_test, Y_test, X_test_ext, Y_test_ext
 
 
 def _build_dataset_eeglab_plot(FOLDER, TRAIN, TEST, CLASS):
@@ -537,15 +576,15 @@ def _read_data_strat2(PATH, CLASS, ch_select=False, norm=True, plot=False, test=
         events_out = events_new
     return X_out, Y_out, events_out
 
-def _read_data_strat3(PATH, CLASS, ch_select=False, norm=True, plot=False, test=False, from_rep0=False,
-                      num_reps=1, num_reps=1, mult=1):
+def _read_data_strat3(PATH, ch_select=False, norm=True, plot=False, test=False, num_reps=1):
     data_pkg = mne.read_epochs_eeglab(PATH)
     events = _get_event(data_pkg.events, data_pkg.event_id)
     event_types = np.unique(np.array(events)).tolist()
+    to_exclude = [4, 8, 32, 128, 16, 64]
     targets = [8]
-    non_targets = [4]
+    non_targets = [4, 16, 32, 64, 128]
     non_targets_extended = event_types
-    for event in [8, 32, 128]:
+    for event in to_exclude:
         if event in non_targets_extended:
             non_targets_extended.remove(event)
     data = data_pkg._data
@@ -555,10 +594,11 @@ def _read_data_strat3(PATH, CLASS, ch_select=False, norm=True, plot=False, test=
         CH = np.shape(data)[1]
     T = np.shape(data)[2]
     X = []
-    Y = []
+    # Y = []
     events_new = []
     for i in range(np.shape(data)[0]):
-        Y.append(CLASS[str(events[i])])
+        # if events[i] in targets:
+        #     Y.append(CLASS[str(events[i])])
         x = data[i, :, :]
         if ch_select is False:
             pass
@@ -578,7 +618,7 @@ def _read_data_strat3(PATH, CLASS, ch_select=False, norm=True, plot=False, test=
                 pass
         X.append(np.reshape(x, (1, np.shape(x)[0], np.shape(x)[1])))
     X = np.array(X)
-    Y = np.array(Y)
+    # Y = np.array(Y)
 
     X_train = []
     Y_train = []
@@ -591,7 +631,8 @@ def _read_data_strat3(PATH, CLASS, ch_select=False, norm=True, plot=False, test=
             inds = list(np.where(events == label)[0])
             combinations = list(itertools.combinations(inds, num_reps))
             random.shuffle(combinations)
-            combinations = combinations[:len(inds) * mult]
+            # combinations = combinations[:int(len(combinations) * ratio)]
+            combinations = combinations[:1000]
             for combo in combinations:
                 X_train.append(np.mean(X[list(combo)], axis=0))
                 Y_train.append([1, 0])
@@ -600,71 +641,60 @@ def _read_data_strat3(PATH, CLASS, ch_select=False, norm=True, plot=False, test=
             inds = list(np.where(events == label)[0])
             combinations = list(itertools.combinations(inds, num_reps))
             random.shuffle(combinations)
-            combinations = combinations[:len(inds) * mult]
+            # combinations = combinations[:int(len(combinations) * ratio)]
+            combinations = combinations[:1000]
             for combo in combinations:
                 X_train.append(np.mean(X[list(combo)], axis=0))
                 Y_train.append([0, 1])
                 events_new.append(label)
     elif test is True:
-        
-
-
-
-    for label in [4, 16, 32, 64, 128, 8]:
-        inds = list(np.where(events == label)[0])
-        if test is False:
-            if from_rep0 is True:
-                for rep in range(num_reps_train):
-                    combinations = list(itertools.combinations(inds, rep + 1))
-                    if rep == 0:
-                        old = combinations.copy()
-                        for i in range(mult - 1):
-                            combinations.extend(old)
-                    else:
-                        random.shuffle(combinations)
-                        combinations = combinations[:len(inds)*mult]
-                    print(f'label: {label}. rep: {rep}. len: {len(combinations)}.')
-                    for combo in combinations:
-                        X_ave.append(np.mean(X[list(combo)], axis=0))
-                        Y_ave.append(CLASS[str(label)])
-                        events_new.append(label)
-            else:
-                combinations = list(itertools.combinations(inds, num_reps_train))
-                random.shuffle(combinations)
-                combinations = combinations[:len(inds) * mult]
-                for combo in combinations:
-                    X_ave.append(np.mean(X[list(combo)], axis=0))
-                    Y_ave.append(CLASS[str(label)])
-                    events_new.append(label)
-                print(f'label: {label}. rep: {num_reps_train}. len: {len(combinations)}.')
-        else:
-            for i in range(len(inds) - num_reps_test):
-                X_ave.append(np.mean(X[inds[i:]], axis=0))
-                Y_ave.append(CLASS[str(label)])
-                events_new.append(label)
-    X_ave = np.array(X_ave)
-    Y_ave = np.array(Y_ave)
-    events_new = np.array(events_new)
-    if np.shape(Y_ave)[1] > 1:
-        pos_ind = np.where(Y_ave[:, 0] == 1)[0]
-    else:
-        pos_ind = np.where(Y_ave == 1)[0]
-    scale = int((np.shape(Y_ave)[0] - len(pos_ind)) / len(pos_ind)) - 1
-    if scale > 0:
-        for i in range(scale):
-            X_ave = np.concatenate([X_ave, X_ave[pos_ind]])
-            Y_ave = np.concatenate([Y_ave, Y_ave[pos_ind]])
-            events_new = np.concatenate([events_new, events_new[pos_ind]])
-    print('total: ' + str(len(Y_ave)) + '. target: ' + str((scale + 1)*len(pos_ind)))
-    if plot is True:
-        X_out = X
-        Y_out = Y
-        events_out = np.array(events)
-    else:
-        X_out = X_ave
-        Y_out = Y_ave
-        events_out = events_new
-    return X_out, Y_out, events_out
+        for label in targets:
+            inds = list(np.where(events == label)[0])
+            for i in range(len(inds) - num_reps):
+                X_test.append(np.mean(X[list(inds[i:i + num_reps])], axis=0))
+                Y_test.append([1, 0])
+            for label in non_targets:
+                inds = list(np.where(events == label)[0])
+                for i in range(len(inds) - num_reps):
+                    X_test.append(np.mean(X[list(inds[i:i + num_reps])], axis=0))
+                    Y_test.append([0, 1])
+            for label in non_targets_extended:
+                inds = list(np.where(events == label)[0])
+                for i in range(len(inds) - num_reps):
+                    X_test_ext.append(np.mean(X[list(inds[i:i + num_reps])], axis=0))
+                    Y_test_ext.append([0, 1])
+    X_train = np.array(X_train)
+    Y_train = np.array(Y_train)
+    X_test = np.array(X_test)
+    Y_test = np.array(Y_test)
+    X_test_ext = np.array(X_test_ext)
+    Y_test_ext = np.array(Y_test_ext)
+    out = {
+        'X_train': X_train,
+        'Y_train': Y_train,
+        'X_test': X_test,
+        'Y_test': Y_test,
+        'X_test_ext': X_test_ext,
+        'Y_test_ext': Y_test_ext
+    }
+    # pos_ind = np.where(Y_train == 1)[0]
+    # scale = int((np.shape(Y_train)[0] - len(pos_ind)) / len(pos_ind)) - 1
+    # if scale > 0:
+    #     for i in range(scale):
+    #         X_ave = np.concatenate([X_ave, X_ave[pos_ind]])
+    #         Y_ave = np.concatenate([Y_ave, Y_ave[pos_ind]])
+    #         events_new = np.concatenate([events_new, events_new[pos_ind]])
+    # print('total: ' + str(len(Y_ave)) + '. target: ' + str((scale + 1)*len(pos_ind)))
+    # if plot is True:
+    #     X_out = X
+    #     Y_out = Y
+    #     events_out = np.array(events)
+    # else:
+    #     X_out = X_ave
+    #     Y_out = Y_ave
+    #     events_out = events_new
+    # return X_out, Y_out, events_out
+    return out
 
 def _make_average(X, Y, CLASS, events, fold=1, epochs=1, consec=False):
     # for i in range(len(CLASS)):
