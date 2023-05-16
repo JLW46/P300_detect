@@ -221,7 +221,7 @@ def _compute_matrics(preds, true, print_tpr=False):
     balanced_acc = (tpr + tnr)/2
     if print_tpr:
         print(f'TPR: {tpr:.4f}. TNR: {tnr:.4f}. Precision: {precision:.4f}. Recall: {recall:.4f}.')
-    return f1, balanced_acc
+    return f1, balanced_acc, precision, recall
 
 
 def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_weight):
@@ -270,14 +270,7 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
                 train_labels = torch.cat((train_labels, y), dim=0)
         _, train_predicts = torch.max(train_outputs, dim=1)
         _, train_labels = torch.max(train_labels, dim=1)
-        f1, ba_acc = _compute_matrics(train_predicts, train_labels)
-        # total = 0
-        # correct = 0
-        # for i, predict in enumerate(train_predicts):
-        #     total = total + 1
-        #     if predict == train_labels[i]:
-        #         correct = correct + 1
-        # train_acc = correct/total
+        f1, ba_acc, precision, recall = _compute_matrics(train_predicts, train_labels)
         log_train_f1.append(f1)
         log_train_acc.append(ba_acc)
         log_train_loss.append(running_train_loss/len(train_loader))
@@ -285,7 +278,6 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
             for data_batch in val_loader:
                 x = data_batch['x'].to(device)
                 y = data_batch['y'].to(device)
-                batch_size = y.size(dim=0)
                 outputs = model(x)
                 val_loss = criterion(outputs, y)
                 running_val_loss += val_loss.item()
@@ -297,14 +289,7 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
                     val_labels = torch.cat((val_labels, y), dim=0)
             _, val_predicts = torch.max(val_outputs, dim=1)
             _, val_labels = torch.max(val_labels, dim=1)
-            f1, ba_acc = _compute_matrics(val_predicts, val_labels)
-            # total = 0
-            # correct = 0
-            # for i, predict in enumerate(val_predicts):
-            #     total = total + 1
-            #     if predict == val_labels[i]:
-            #         correct = correct + 1
-            # val_acc = correct / total
+            f1, ba_acc, precision, recall = _compute_matrics(val_predicts, val_labels)
             log_val_f1.append(f1)
             log_val_acc.append(ba_acc)
             log_val_loss.append(running_val_loss/len(val_loader))
@@ -323,16 +308,9 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
                     test_labels = torch.cat((test_labels, y), dim=0)
             _, test_predicts = torch.max(test_outputs, dim=1)
             _, test_labels = torch.max(test_labels, dim=1)
-            f1, ba_acc = _compute_matrics(test_predicts, test_labels)
-            # total = 0
-            # correct = 0
-            # for i, predict in enumerate(test_predicts):
-            #     total = total + 1
-            #     if predict == test_labels[i]:
-            #         correct = correct + 1
-            # test_acc = correct/total
-            log_test_f1.append(f1)
-            log_test_acc.append(ba_acc)
+            f1_test, ba_acc_test, precision_test, recall_test = _compute_matrics(test_predicts, test_labels)
+            log_test_f1.append(f1_test)
+            log_test_acc.append(ba_acc_test)
             log_test_loss.append(running_test_loss / len(test_loader))
         if testext_loader is not None:
             for data_batch in testext_loader:
@@ -349,16 +327,9 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
                     testext_labels = torch.cat((testext_labels, y), dim=0)
             _, testext_predicts = torch.max(testext_outputs, dim=1)
             _, testext_labels = torch.max(testext_labels, dim=1)
-            f1, ba_acc = _compute_matrics(testext_predicts, testext_labels, print_tpr=True)
-            # total = 0
-            # correct = 0
-            # for i, predict in enumerate(test_predicts):
-            #     total = total + 1
-            #     if predict == test_labels[i]:
-            #         correct = correct + 1
-            # test_acc = correct/total
-            log_testext_f1.append(f1)
-            log_testext_acc.append(ba_acc)
+            f1_testext, ba_acc_testext, precision_testext, recall_testext = _compute_matrics(testext_predicts, testext_labels, print_tpr=True)
+            log_testext_f1.append(f1_testext)
+            log_testext_acc.append(ba_acc_testext)
             log_testext_loss.append(running_testext_loss / len(testext_loader))
         print(f'epoch: {epoch} '
               f'loss: [{running_train_loss/len(train_loader):.4f} {running_val_loss/len(val_loader):.4f} '
@@ -372,33 +343,39 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
             if ((np.amax(vals) - np.amin(vals)) < 0.0005) or ((np.amax(trains) - np.amin(trains)) < 0.0005):
                 print('Triggered early stopping.')
                 break
-    tp = 0
-    tn = 0
-    fp = 0
-    fn = 0
-    for i in range(len(test_predicts)):
-        if test_predicts[i] == 0:
-            if test_labels[i] == 0:
-                tn = tn + 1
-            else:
-                fn = fn + 1
-        else:
-            if test_labels[i] == 1:
-                tp = tp + 1
-            else:
-                fp = fp + 1
-    total = tp + tn + fp + fn
-    ACC = (tp + tn) / total
-    PRECISION = tp/(tp + fp)
-    RECALL = tp/(tp + fn)
-    F1 = 2*PRECISION*RECALL/(PRECISION + RECALL)
-    print(f'Finished! ACC: {ACC:.4f} PRECISION: {PRECISION:.4f} RECALL: {RECALL:.4f} F1: {F1:.4f}')
+    #
+    # tp = 0
+    # tn = 0
+    # fp = 0
+    # fn = 0
+    # for i in range(len(test_predicts)):
+    #     if test_predicts[i] == 0:
+    #         if test_labels[i] == 0:
+    #             tp = tp + 1
+    #         else:
+    #             fn = fn + 1
+    #     else:
+    #         if test_labels[i] == 1:
+    #             tp = tp + 1
+    #         else:
+    #             fp = fp + 1
+    # total = tp + tn + fp + fn
+    # ACC = (tp + tn) / total
+    # PRECISION = tp/(tp + fp)
+    # RECALL = tp/(tp + fn)
+    # F1 = 2*PRECISION*RECALL/(PRECISION + RECALL)
+    print(f'Finished! TEST ACC: {ba_acc_test:.4f} PRECISION: {precision_test:.4f} RECALL: {recall_test:.4f} F1: {f1_test:.4f}')
     out = {
-        'acc': ACC,
-        'prec': PRECISION,
-        'recall': RECALL,
-        'f1': F1,
-        'loss': log_test_loss[-1]
+        'acc': ba_acc_test,
+        'prec': precision_test,
+        'recall': recall_test,
+        'f1': f1_test,
+        'loss': log_test_loss[-1],
+        'acc_ext': ba_acc_testext,
+        'prec_ext': precision_testext,
+        'recall_ext': recall_testext,
+        'f1_ext': f1_testext,
+        'loss_ext': log_testext_loss[-1]
     }
     # ax_loss = fig.add_subplot(121, title="Loss")
     # ax_acc = fig.add_subplot(122, title="ACC")
@@ -448,6 +425,8 @@ def _model_summary(model):
             param = model_parameters[j].numel()
             j = j + 1
         print(str(i) + "\t" * 3 + str(param))
-        total_params += param
+        # total_params += param
+    total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+
     print("=" * 100)
     print(f"Total Params:{total_params}")
