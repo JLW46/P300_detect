@@ -618,7 +618,6 @@ def _read_data_strat3(PATH, ch_select=False, norm=True, plot=False, test=False, 
                 pass
         X.append(np.reshape(x, (1, np.shape(x)[0], np.shape(x)[1])))
     X = np.array(X)
-    # Y = np.array(Y)
 
     X_train = []
     Y_train = []
@@ -677,24 +676,27 @@ def _read_data_strat3(PATH, ch_select=False, norm=True, plot=False, test=False, 
         'X_test_ext': X_test_ext,
         'Y_test_ext': Y_test_ext
     }
-    # pos_ind = np.where(Y_train == 1)[0]
-    # scale = int((np.shape(Y_train)[0] - len(pos_ind)) / len(pos_ind)) - 1
-    # if scale > 0:
-    #     for i in range(scale):
-    #         X_ave = np.concatenate([X_ave, X_ave[pos_ind]])
-    #         Y_ave = np.concatenate([Y_ave, Y_ave[pos_ind]])
-    #         events_new = np.concatenate([events_new, events_new[pos_ind]])
-    # print('total: ' + str(len(Y_ave)) + '. target: ' + str((scale + 1)*len(pos_ind)))
-    # if plot is True:
-    #     X_out = X
-    #     Y_out = Y
-    #     events_out = np.array(events)
-    # else:
-    #     X_out = X_ave
-    #     Y_out = Y_ave
-    #     events_out = events_new
-    # return X_out, Y_out, events_out
     return out
+
+
+def _combos(events, label, num_reps):
+    inds = list(np.where(events == label)[0])
+    n_0 = 1000
+
+    if num_reps < 3:
+        combinations = list(itertools.combinations(inds, num_reps))
+        random.shuffle(combinations)
+        combinations_out = combinations[:n_0]
+    elif num_reps < 5:
+        n_1 = n_0//(len(inds) - 1)
+        for i in range(len(inds) - 1):
+            a = inds[i:i + 1]
+            inds_removed = inds.copy()
+            inds_removed.remove(ele for ele in a)
+            combinations = list(itertools.combinations(inds_removed, num_reps - 2))[:n_1]
+
+    return combinations_out
+
 
 def _make_average(X, Y, CLASS, events, fold=1, epochs=1, consec=False):
     # for i in range(len(CLASS)):
@@ -778,4 +780,3 @@ def _consec_average(X, Y, epochs=2):
 # PATH = r'D:\Code\PycharmProjects\P300_detect\data\a\01_01.set'
 # data_pkg = mne.read_epochs_eeglab(PATH)
 # print('a')
-
