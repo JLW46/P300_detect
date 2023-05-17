@@ -520,8 +520,8 @@ def _run_cnn_torch_strat3(trial_epochs=[1]):
                 print(np.sum(Y_test, axis=0))
                 print(np.sum(Y_test_ext, axis=0))
 
-                # model = util_torch.EEGNET(eeg_ch=num_ch)
-                model = util_torch.VIT(num_eegch=num_ch, num_heads=4, num_layers=1)
+                model = util_torch.EEGNET(eeg_ch=num_ch)
+                # model = util_torch.VIT(num_eegch=num_ch, num_heads=4, num_layers=1)
                 util_torch._model_summary(model)
                 # data_set_train = util_torch.EegData(X_train, Y_train)
                 # train_set, val_set = torch.utils.data.random_split(data_set_train, [0.8, 0.2])

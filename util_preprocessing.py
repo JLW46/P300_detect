@@ -627,21 +627,23 @@ def _read_data_strat3(PATH, ch_select=False, norm=True, plot=False, test=False, 
     Y_test_ext = []
     if test is False:
         for label in targets:
-            inds = list(np.where(events == label)[0])
-            combinations = list(itertools.combinations(inds, num_reps))
-            random.shuffle(combinations)
-            # combinations = combinations[:int(len(combinations) * ratio)]
-            combinations = combinations[:1000]
+            # inds = list(np.where(events == label)[0])
+            # combinations = list(itertools.combinations(inds, num_reps))
+            # random.shuffle(combinations)
+            # # combinations = combinations[:int(len(combinations) * ratio)]
+            # combinations = combinations[:1000]
+            combinations = _combos(events, label, num_reps)
             for combo in combinations:
                 X_train.append(np.mean(X[list(combo)], axis=0))
                 Y_train.append([1, 0])
                 events_new.append(label)
         for label in non_targets:
-            inds = list(np.where(events == label)[0])
-            combinations = list(itertools.combinations(inds, num_reps))
-            random.shuffle(combinations)
-            # combinations = combinations[:int(len(combinations) * ratio)]
-            combinations = combinations[:1000]
+            # inds = list(np.where(events == label)[0])
+            # combinations = list(itertools.combinations(inds, num_reps))
+            # random.shuffle(combinations)
+            # # combinations = combinations[:int(len(combinations) * ratio)]
+            # combinations = combinations[:1000]
+            combinations = _combos(events, label, num_reps)
             for combo in combinations:
                 X_train.append(np.mean(X[list(combo)], axis=0))
                 Y_train.append([0, 1])
@@ -682,19 +684,37 @@ def _read_data_strat3(PATH, ch_select=False, norm=True, plot=False, test=False, 
 def _combos(events, label, num_reps):
     inds = list(np.where(events == label)[0])
     n_0 = 1000
-
     if num_reps < 3:
         combinations = list(itertools.combinations(inds, num_reps))
         random.shuffle(combinations)
         combinations_out = combinations[:n_0]
     elif num_reps < 5:
         n_1 = n_0//(len(inds) - 1)
+        combinations_out = []
         for i in range(len(inds) - 1):
-            a = inds[i:i + 1]
+            a = inds[i:i + 2]
             inds_removed = inds.copy()
-            inds_removed.remove(ele for ele in a)
-            combinations = list(itertools.combinations(inds_removed, num_reps - 2))[:n_1]
-
+            for ele in a:
+                inds_removed.remove(ele)
+            combinations = list(itertools.combinations(inds_removed, num_reps - 2))
+            random.shuffle(combinations)
+            combinations = combinations[:n_1]
+            for combo in combinations:
+                combinations_out.append(np.concatenate([np.array(a), np.array(combo)]))
+    else:
+        n_1 = n_0 // (len(inds) - 2)
+        combinations_out = []
+        for i in range(len(inds) - 2):
+            a = inds[i:i + 3]
+            inds_removed = inds.copy()
+            for ele in a:
+                inds_removed.remove(ele)
+            combinations = list(itertools.combinations(inds_removed, num_reps - 3))
+            random.shuffle(combinations)
+            combinations = combinations[:n_1]
+            for combo in combinations:
+                combinations_out.append(np.concatenate([np.array(a), np.array(combo)]))
+    # print('a')
     return combinations_out
 
 
