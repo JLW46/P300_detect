@@ -500,6 +500,7 @@ def _run_cnn_torch_strat3(trial_epochs=[1]):
             # if True:
             #     TEST = ['01_01.set']
                 batch_size_schedule = [24, 32, 40, 48, 56, 64]
+                # batch_size_schedule = [24, 32, 32, 8, 32, 32]
                 X_train, Y_train, X_test, Y_test, X_test_ext, Y_test_ext = util_preprocessing._build_dataset_strat3(FOLDER, TRAIN, TEST,
                                                                                             ch_select=CH_SELECT,
                                                                                             num_reps=epochs)
@@ -520,7 +521,8 @@ def _run_cnn_torch_strat3(trial_epochs=[1]):
                 print(np.sum(Y_test, axis=0))
                 print(np.sum(Y_test_ext, axis=0))
 
-                model = util_torch.EEGNET(eeg_ch=num_ch)
+                # model = util_torch.EEGNET(eeg_ch=num_ch)
+                model = util_torch.RESNET(eeg_ch=num_ch, num_res_module_1=1, num_reduct_module_1=1)
                 # model = util_torch.VIT(num_eegch=num_ch, num_heads=4, num_layers=1)
                 util_torch._model_summary(model)
                 # data_set_train = util_torch.EegData(X_train, Y_train)

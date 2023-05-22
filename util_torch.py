@@ -70,7 +70,7 @@ class EEGNET(nn.Module):
     def forward(self, x):
         # Block 1
         x = self.bn1(self.conv1(x)) # [8, ch, 125]
-        x = self.bn2(self.conv2(x)) # [16, 1. 125]
+        x = self.bn2(self.conv2(x)) # [16, 1, 125]
         x = func.dropout(input=(func.avg_pool2d(func.elu(x), (1, 5))), p=0.25) # [16, 1, 25]
         # Block 2
         x = self.conv3(x)
@@ -79,6 +79,106 @@ class EEGNET(nn.Module):
         x = torch.flatten(input=x, start_dim=1) # [80]
         x = func.softmax(self.fc1(x), dim=-1) # [2]
         return x
+
+
+class RESNET(nn.Module):
+    # len=125
+    def __init__(self, eeg_ch, num_res_module_1, num_reduct_module_1):
+        # in_shape = [C_ch, H_eegch, W_time] [1, 64, 125]
+        super(RESNET, self).__init__()
+        self.stem_conv11 = nn.Conv2d(in_channels=1, out_channels=4,
+                               kernel_size=(1, 5), stride=(1, 1),
+                               padding='same')
+        self.stem_conv12 = nn.Conv2d(in_channels=1, out_channels=4,
+                                    kernel_size=(1, 15), stride=(1, 1),
+                                    padding='same')
+        self.stem_conv13 = nn.Conv2d(in_channels=1, out_channels=4,
+                                    kernel_size=(1, 25), stride=(1, 1),
+                                    padding='same')
+        self.stem_conv21 = nn.Conv2d(in_channels=12, out_channels=48,
+                                    kernel_size=(1, 3), stride=(1, 2),
+                                    padding='valid', groups=12)
+        self.res_module_1 = nn.ModuleList([])
+        for i in range(num_res_module_1):
+            self.res_module_1.append(nn.ModuleList([
+                nn.Conv2d(in_channels=48, out_channels=8,
+                                    kernel_size=(1, 1), stride=(1, 1),
+                                    padding='same'), # branch 1
+                nn.Conv2d(in_channels=48, out_channels=8,
+                                    kernel_size=(1, 1), stride=(1, 1),
+                                    padding='same'), # branch 2
+                nn.Conv2d(in_channels=8, out_channels=8,
+                          kernel_size=(1, 5), stride=(1, 1),
+                          padding='same'),  # branch 2
+                nn.Conv2d(in_channels=8, out_channels=8,
+                          kernel_size=(eeg_ch, 1), stride=(1, 1),
+                          padding='same', padding_mode='circular'),  # branch 2
+                nn.Conv2d(in_channels=16, out_channels=48,
+                          kernel_size=(1, 1), stride=(1, 1),
+                          padding='same'),  # branch merged
+            ]))
+        self.reduct_conv1 = nn.Conv2d(in_channels=48, out_channels=96,
+                                    kernel_size=(eeg_ch, 1), stride=(1, 1),
+                                    padding='valid', groups=48)
+        self.reduct_module_1 = nn.ModuleList([])
+        for i in range(num_reduct_module_1):
+            self.reduct_module_1.append(nn.ModuleList([
+                nn.Conv2d(in_channels=96, out_channels=32,
+                                    kernel_size=(1, 1), stride=(1, 1),
+                                    padding='same'), # branch 1 (+ave_pool)
+                nn.Conv2d(in_channels=96, out_channels=32,
+                                    kernel_size=(1, 1), stride=(1, 1),
+                                    padding='same'), # branch 2
+                nn.Conv2d(in_channels=32, out_channels=32,
+                          kernel_size=(1, 3), stride=(1, 2),
+                          padding='valid'),  # branch 2
+                nn.Conv2d(in_channels=96, out_channels=32,
+                          kernel_size=(1, 1), stride=(1, 1),
+                          padding='same'),  # branch 3
+                nn.Conv2d(in_channels=32, out_channels=32,
+                          kernel_size=(1, 3), stride=(1, 2),
+                          padding='valid'),  # branch 3
+                nn.Conv2d(in_channels=32, out_channels=32,
+                          kernel_size=(1, 3), stride=(1, 1),
+                          padding='same'),  # branch 3
+            ]))
+        self.fc1 = nn.Linear(384, 2)
+    def forward(self, x):
+        # [1, 64, 125]
+        x = torch.cat((self.stem_conv11(x),
+                       self.stem_conv12(x),
+                       self.stem_conv13(x)), dim=1)
+        # [12, 64, 125]
+        x = self.stem_conv21(x)
+        # [48, 64, 62]
+        x = func.max_pool2d(func.elu(x), (1, 3))
+        # [48, 64, 20]
+        # x = torch.cat((self.stem_conv21(x),
+        #                func.max_pool2d(func.elu(x), (1, 3), stride=(1, 2))))
+        for res_conv_11, res_conv_21, res_conv_22, res_conv_23, res_conv_m in self.res_module_1:
+            x_1 = res_conv_11(x)
+            x_2 = res_conv_21(x)
+            x_2 = res_conv_22(x_2)
+            x_2 = res_conv_23(x_2)
+            x_m = res_conv_m(torch.cat((x_1, x_2), dim=1))
+            x = func.elu(x + x_m)
+        x = self.reduct_conv1(x)
+        # [96, 1, 20]
+        for red_conv_11, red_conv_21, red_conv_22, red_conv_31, red_conv_32, red_conv_33 in self.reduct_module_1:
+            x_1 = red_conv_11(func.avg_pool2d(x, (1, 3), stride=(1, 2)))
+            x_2 = red_conv_21(x)
+            x_2 = red_conv_22(x_2)
+            x_3 = red_conv_31(x)
+            x_3 = red_conv_32(x_3)
+            x_3 = red_conv_33(x_3)
+            x = torch.cat((x_1, x_2, x_3), dim=1)
+        # [96, 1, 9]
+        x = func.avg_pool2d(x, (1, 3), stride=(1, 2))
+        x = torch.flatten(input=x, start_dim=1)
+        x = func.dropout(x, p=0.5)
+        out = func.softmax(self.fc1(x), dim=-1)
+
+        return out
 
 
 class VIT(nn.Module):
@@ -220,7 +320,7 @@ def _compute_matrics(preds, true, print_tpr=False):
     f1 = 2*(precision*recall)/(precision + recall)
     balanced_acc = (tpr + tnr)/2
     if print_tpr:
-        print(f'TPR: {tpr:.4f}. TNR: {tnr:.4f}. Precision: {precision:.4f}. Recall: {recall:.4f}.')
+        print(f'TPR: {tpr:.4f}. TNR: {tnr:.4f}. Precision: {precision:.4f}. Recall: {recall:.4f}. False Positive Rate: {FP/(FP + TN):.4f}.')
     return f1, balanced_acc, precision, recall
 
 
@@ -228,7 +328,7 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
     # optimizer = optim.SGD(model.parameters(), lr=0.0005, momentum=0.9, weight_decay=0.05)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print(device)
-    optimizer = optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.0)
+    optimizer = optim.Adam(model.parameters(), lr=0.00001, weight_decay=0.0)
     criterion = nn.CrossEntropyLoss(weight=class_weight, label_smoothing=0.0)
     criterion.to(device)
     model.to(device)
@@ -274,63 +374,64 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
         log_train_f1.append(f1)
         log_train_acc.append(ba_acc)
         log_train_loss.append(running_train_loss/len(train_loader))
-        if val_loader is not None:
-            for data_batch in val_loader:
-                x = data_batch['x'].to(device)
-                y = data_batch['y'].to(device)
-                outputs = model(x)
-                val_loss = criterion(outputs, y)
-                running_val_loss += val_loss.item()
-                if val_outputs is None:
-                    val_outputs = outputs
-                    val_labels = y
-                else:
-                    val_outputs = torch.cat((val_outputs, outputs), dim=0)
-                    val_labels = torch.cat((val_labels, y), dim=0)
-            _, val_predicts = torch.max(val_outputs, dim=1)
-            _, val_labels = torch.max(val_labels, dim=1)
-            f1, ba_acc, precision, recall = _compute_matrics(val_predicts, val_labels)
-            log_val_f1.append(f1)
-            log_val_acc.append(ba_acc)
-            log_val_loss.append(running_val_loss/len(val_loader))
-        if test_loader is not None:
-            for data_batch in test_loader:
-                x = data_batch['x'].to(device)
-                y = data_batch['y'].to(device)
-                outputs = model(x)
-                test_loss = criterion(outputs, y)
-                running_test_loss +=test_loss.item()
-                if test_outputs is None:
-                    test_outputs = outputs
-                    test_labels = y
-                else:
-                    test_outputs = torch.cat((test_outputs, outputs), dim=0)
-                    test_labels = torch.cat((test_labels, y), dim=0)
-            _, test_predicts = torch.max(test_outputs, dim=1)
-            _, test_labels = torch.max(test_labels, dim=1)
-            f1_test, ba_acc_test, precision_test, recall_test = _compute_matrics(test_predicts, test_labels)
-            log_test_f1.append(f1_test)
-            log_test_acc.append(ba_acc_test)
-            log_test_loss.append(running_test_loss / len(test_loader))
-        if testext_loader is not None:
-            for data_batch in testext_loader:
-                x = data_batch['x'].to(device)
-                y = data_batch['y'].to(device)
-                outputs = model(x)
-                testext_loss = criterion(outputs, y)
-                running_testext_loss +=testext_loss.item()
-                if testext_outputs is None:
-                    testext_outputs = outputs
-                    testext_labels = y
-                else:
-                    testext_outputs = torch.cat((testext_outputs, outputs), dim=0)
-                    testext_labels = torch.cat((testext_labels, y), dim=0)
-            _, testext_predicts = torch.max(testext_outputs, dim=1)
-            _, testext_labels = torch.max(testext_labels, dim=1)
-            f1_testext, ba_acc_testext, precision_testext, recall_testext = _compute_matrics(testext_predicts, testext_labels, print_tpr=True)
-            log_testext_f1.append(f1_testext)
-            log_testext_acc.append(ba_acc_testext)
-            log_testext_loss.append(running_testext_loss / len(testext_loader))
+        with torch.no_grad():
+            if val_loader is not None:
+                for data_batch in val_loader:
+                    x = data_batch['x'].to(device)
+                    y = data_batch['y'].to(device)
+                    outputs = model(x)
+                    val_loss = criterion(outputs, y)
+                    running_val_loss += val_loss.item()
+                    if val_outputs is None:
+                        val_outputs = outputs
+                        val_labels = y
+                    else:
+                        val_outputs = torch.cat((val_outputs, outputs), dim=0)
+                        val_labels = torch.cat((val_labels, y), dim=0)
+                _, val_predicts = torch.max(val_outputs, dim=1)
+                _, val_labels = torch.max(val_labels, dim=1)
+                f1, ba_acc, precision, recall = _compute_matrics(val_predicts, val_labels)
+                log_val_f1.append(f1)
+                log_val_acc.append(ba_acc)
+                log_val_loss.append(running_val_loss/len(val_loader))
+            if test_loader is not None:
+                for data_batch in test_loader:
+                    x = data_batch['x'].to(device)
+                    y = data_batch['y'].to(device)
+                    outputs = model(x)
+                    test_loss = criterion(outputs, y)
+                    running_test_loss +=test_loss.item()
+                    if test_outputs is None:
+                        test_outputs = outputs
+                        test_labels = y
+                    else:
+                        test_outputs = torch.cat((test_outputs, outputs), dim=0)
+                        test_labels = torch.cat((test_labels, y), dim=0)
+                _, test_predicts = torch.max(test_outputs, dim=1)
+                _, test_labels = torch.max(test_labels, dim=1)
+                f1_test, ba_acc_test, precision_test, recall_test = _compute_matrics(test_predicts, test_labels)
+                log_test_f1.append(f1_test)
+                log_test_acc.append(ba_acc_test)
+                log_test_loss.append(running_test_loss / len(test_loader))
+            if testext_loader is not None:
+                for data_batch in testext_loader:
+                    x = data_batch['x'].to(device)
+                    y = data_batch['y'].to(device)
+                    outputs = model(x)
+                    testext_loss = criterion(outputs, y)
+                    running_testext_loss +=testext_loss.item()
+                    if testext_outputs is None:
+                        testext_outputs = outputs
+                        testext_labels = y
+                    else:
+                        testext_outputs = torch.cat((testext_outputs, outputs), dim=0)
+                        testext_labels = torch.cat((testext_labels, y), dim=0)
+                _, testext_predicts = torch.max(testext_outputs, dim=1)
+                _, testext_labels = torch.max(testext_labels, dim=1)
+                f1_testext, ba_acc_testext, precision_testext, recall_testext = _compute_matrics(testext_predicts, testext_labels, print_tpr=True)
+                log_testext_f1.append(f1_testext)
+                log_testext_acc.append(ba_acc_testext)
+                log_testext_loss.append(running_testext_loss / len(testext_loader))
         print(f'epoch: {epoch} '
               f'loss: [{running_train_loss/len(train_loader):.4f} {running_val_loss/len(val_loader):.4f} '
               f'{running_test_loss/len(test_loader):.4f} {running_testext_loss/len(testext_loader):.4f}] '
@@ -338,32 +439,12 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
               f'f1: [{log_train_f1[-1]:.4f} {log_val_f1[-1]:.4f} {log_test_f1[-1]:.4f} {log_testext_f1[-1]:.4f}]')
         # Early stopping
         if len(log_val_loss) > 20:
-            vals = np.array(log_val_loss[-20:])
-            trains = np.array(log_train_loss[-20:])
+            vals = np.array(log_val_loss[-15:])
+            trains = np.array(log_train_loss[-15:])
             if ((np.amax(vals) - np.amin(vals)) < 0.0005) or ((np.amax(trains) - np.amin(trains)) < 0.0005):
                 print('Triggered early stopping.')
                 break
-    #
-    # tp = 0
-    # tn = 0
-    # fp = 0
-    # fn = 0
-    # for i in range(len(test_predicts)):
-    #     if test_predicts[i] == 0:
-    #         if test_labels[i] == 0:
-    #             tp = tp + 1
-    #         else:
-    #             fn = fn + 1
-    #     else:
-    #         if test_labels[i] == 1:
-    #             tp = tp + 1
-    #         else:
-    #             fp = fp + 1
-    # total = tp + tn + fp + fn
-    # ACC = (tp + tn) / total
-    # PRECISION = tp/(tp + fp)
-    # RECALL = tp/(tp + fn)
-    # F1 = 2*PRECISION*RECALL/(PRECISION + RECALL)
+
     print(f'Finished! TEST ACC: {ba_acc_test:.4f} PRECISION: {precision_test:.4f} RECALL: {recall_test:.4f} F1: {f1_test:.4f}')
     out = {
         'acc': ba_acc_test,
@@ -412,13 +493,11 @@ def _model_summary(model):
     total_params = 0
     print("\t" * 10)
     for i in layer_name:
-        print()
-        param = 0
         try:
             bias = (i.bias is not None)
         except:
             bias = False
-        if not bias:
+        if bias:
             param = model_parameters[j].numel() + model_parameters[j + 1].numel()
             j = j + 2
         else:
