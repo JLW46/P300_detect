@@ -552,7 +552,8 @@ def _run_cnn_torch_strat3(trial_epochs=[1]):
                 result_to_save.append([TEST[0].split('.')[0], epochs,
                                        out['loss'], out['acc'], out['prec'], out['recall'], out['f1']])
     # save_name = 'results/torch_eegnet_0ch.csv'
-    save_name = 'results/torch_vit_0ch.csv'
+    # save_name = 'results/torch_vit_0ch.csv'
+    save_name = 'results/torch_resnet_0ch.csv'
     with open(save_name, 'w', encoding='UTF8', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['test', 'epochs', 'loss', 'acc', 'prec', 'recall', 'f1'])
@@ -650,5 +651,5 @@ def _run_csp_lda(display=False, epochs=1):
 #     _run_cnn_torch()
 # _run_cnn_test2(epochs=6)
 trial_epochs=[1, 2, 3, 4, 5, 6]
-trial_epochs = [4]
+# trial_epochs = [4]
 _run_cnn_torch_strat3(trial_epochs=trial_epochs)
