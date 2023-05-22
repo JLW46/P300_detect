@@ -564,6 +564,53 @@ def _run_cnn_torch_strat3(trial_epochs=[1]):
     return
 
 
+def _build_dataset(trial_epochs):
+    CH_SELECT = False
+    if CH_SELECT is False:
+        num_ch = 64
+    else:
+        num_ch = len(CH_SELECT)
+    result_to_save = []
+    for epochs in trial_epochs:
+        for sbj in ['01', '02', '03', '04', '06', '07', '08', '09']:
+            # for sbj in ['01']:
+            # create TRAIN
+            TRAIN = []
+            for set in ['_01', '_02', '_03', '_04', '_05', '_06']:
+                TRAIN.append(sbj + set + '.set')
+            # run
+            for item in TRAIN:
+                TEST = [item]
+                # if True:
+                #     TEST = ['01_01.set']
+                batch_size_schedule = [24, 32, 40, 48, 56, 64]
+                # batch_size_schedule = [24, 32, 32, 8, 32, 32]
+                X_train, Y_train, X_test, Y_test, X_test_ext, Y_test_ext = util_preprocessing._build_dataset_strat3(
+                    FOLDER, TRAIN, TEST,
+                    ch_select=CH_SELECT,
+                    num_reps=epochs)
+                X_train_, Y_train_, X_val_, Y_val_ = util_torch._manual_val_split(X_train, Y_train, ratio=0.85)
+
+                save_name = item.split('.')[0] + '_epoch11_' + str(epochs) + '.npz'
+                np.savez_compressed(save_name,
+                                    x_train=X_train_, y_train=Y_train_,
+                                    x_val=X_val_, y_val=Y_val_,
+                                    x_test=X_test, y_test=Y_test,
+                                    x_test_ext=X_test_ext, y_test_ext=Y_test_ext)
+                # save_name = item.split('.')[0] + '_epoch_' + str(epochs) + '.json'
+                # data_save = {
+                #     'X1': X_train_.tolist(),
+                #     'Y1': Y_train_.tolist(),
+                #     'X2': X_val_.tolist(),
+                #     'Y2': Y_val_.tolist(),
+                #     'X3': X_test.tolist(),
+                #     'Y3': Y_test.tolist(),
+                #     'X4': X_test_ext.tolist(),
+                #     'Y4': Y_test_ext.tolist()
+                # }
+                # with open(save_name, 'w') as file:
+                #     json.dump(data_save, file)
+
 def _run_csp_lda(display=False, epochs=1):
     CLASS = {
         '4': [0],  # nt estim
@@ -652,4 +699,11 @@ def _run_csp_lda(display=False, epochs=1):
 # _run_cnn_test2(epochs=6)
 trial_epochs=[1, 2, 3, 4, 5, 6]
 # trial_epochs = [4]
-_run_cnn_torch_strat3(trial_epochs=trial_epochs)
+# _run_cnn_torch_strat3(trial_epochs=trial_epochs)
+_build_dataset(trial_epochs=trial_epochs)
+
+
+# file = r'D:\Code\PycharmProjects\P300_detect\01_01_epoch11_1.npz'
+# loaded = np.load(file)
+# X1 = loaded['x_train']
+# print('1')
