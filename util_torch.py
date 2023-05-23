@@ -321,7 +321,7 @@ def _compute_matrics(preds, true, print_tpr=False):
     balanced_acc = (tpr + tnr)/2
     if print_tpr:
         print(f'TPR: {tpr:.4f}. TNR: {tnr:.4f}. Precision: {precision:.4f}. Recall: {recall:.4f}. False Positive Rate: {FP/(FP + TN):.4f}.')
-    return f1, balanced_acc, precision, recall
+    return f1, balanced_acc, precision, recall, FP/(FP + TN)
 
 
 def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_weight):
@@ -370,7 +370,7 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
                 train_labels = torch.cat((train_labels, y), dim=0)
         _, train_predicts = torch.max(train_outputs, dim=1)
         _, train_labels = torch.max(train_labels, dim=1)
-        f1, ba_acc, precision, recall = _compute_matrics(train_predicts, train_labels)
+        f1, ba_acc, precision, recall, _ = _compute_matrics(train_predicts, train_labels)
         log_train_f1.append(f1)
         log_train_acc.append(ba_acc)
         log_train_loss.append(running_train_loss/len(train_loader))
@@ -390,7 +390,7 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
                         val_labels = torch.cat((val_labels, y), dim=0)
                 _, val_predicts = torch.max(val_outputs, dim=1)
                 _, val_labels = torch.max(val_labels, dim=1)
-                f1, ba_acc, precision, recall = _compute_matrics(val_predicts, val_labels)
+                f1, ba_acc, precision, recall, _ = _compute_matrics(val_predicts, val_labels)
                 log_val_f1.append(f1)
                 log_val_acc.append(ba_acc)
                 log_val_loss.append(running_val_loss/len(val_loader))
@@ -409,7 +409,7 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
                         test_labels = torch.cat((test_labels, y), dim=0)
                 _, test_predicts = torch.max(test_outputs, dim=1)
                 _, test_labels = torch.max(test_labels, dim=1)
-                f1_test, ba_acc_test, precision_test, recall_test = _compute_matrics(test_predicts, test_labels)
+                f1_test, ba_acc_test, precision_test, recall_test, _ = _compute_matrics(test_predicts, test_labels)
                 log_test_f1.append(f1_test)
                 log_test_acc.append(ba_acc_test)
                 log_test_loss.append(running_test_loss / len(test_loader))
@@ -428,7 +428,7 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
                         testext_labels = torch.cat((testext_labels, y), dim=0)
                 _, testext_predicts = torch.max(testext_outputs, dim=1)
                 _, testext_labels = torch.max(testext_labels, dim=1)
-                f1_testext, ba_acc_testext, precision_testext, recall_testext = _compute_matrics(testext_predicts, testext_labels, print_tpr=True)
+                f1_testext, ba_acc_testext, precision_testext, recall_testext, fp_over_allp = _compute_matrics(testext_predicts, testext_labels, print_tpr=True)
                 log_testext_f1.append(f1_testext)
                 log_testext_acc.append(ba_acc_testext)
                 log_testext_loss.append(running_testext_loss / len(testext_loader))
@@ -456,7 +456,8 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
         'prec_ext': precision_testext,
         'recall_ext': recall_testext,
         'f1_ext': f1_testext,
-        'loss_ext': log_testext_loss[-1]
+        'loss_ext': log_testext_loss[-1],
+        'fp_over_allp': fp_over_allp
     }
     # ax_loss = fig.add_subplot(121, title="Loss")
     # ax_acc = fig.add_subplot(122, title="ACC")

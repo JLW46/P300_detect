@@ -478,7 +478,7 @@ def _run_cnn_torch(epochs=1, flag1=True):
     return
 
 
-def _run_cnn_torch_strat3(trial_epochs=[1]):
+def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False):
     # CH_SELECT = [9, 27, 45, 59, 43, 47, 50, 56]
     # CH_SELECT = [9, 27, 45]
     CH_SELECT = False
@@ -501,15 +501,27 @@ def _run_cnn_torch_strat3(trial_epochs=[1]):
             #     TEST = ['01_01.set']
                 batch_size_schedule = [24, 32, 40, 48, 56, 64]
                 # batch_size_schedule = [24, 32, 32, 8, 32, 32]
-                X_train, Y_train, X_test, Y_test, X_test_ext, Y_test_ext = util_preprocessing._build_dataset_strat3(FOLDER, TRAIN, TEST,
-                                                                                            ch_select=CH_SELECT,
-                                                                                            num_reps=epochs)
-                # transpose to ch-first for torch
-                # X_train = np.transpose(X_train, (0, 3, 1, 2))
-                # X_test = np.transpose(X_test, (0, 3, 1, 2))
+                if from_npz:
+                    load_name = item.split('.')[0] + '_epoch11_' + str(epochs) + '.npz'
+                    print(load_name)
+                    load_name = os.path.join('D:/Data/SEP w noise/', load_name)
+                    loaded = np.load(load_name)
+                    X_train_ = loaded['x_train']
+                    Y_train_ = loaded['y_train']
+                    X_val_ = loaded['x_val']
+                    Y_val_ = loaded['y_val']
+                    X_test = loaded['x_test']
+                    Y_test = loaded['y_test']
+                    X_test_ext = loaded['x_test_ext']
+                    Y_test_ext = loaded['y_test_ext']
+                else:
+                    X_train, Y_train, X_test, Y_test, X_test_ext, Y_test_ext = util_preprocessing._build_dataset_strat3(FOLDER, TRAIN, TEST,
+                                                                                                ch_select=CH_SELECT,
+                                                                                                num_reps=epochs)
+                    X_train_, Y_train_, X_val_, Y_val_ = util_torch._manual_val_split(X_train, Y_train, ratio=0.85)
                 print('train')
-                print(np.shape(X_train))
-                print(np.shape(Y_train))
+                print(np.shape(X_train_))
+                print(np.shape(Y_train_))
                 print('test')
                 print(np.shape(X_test))
                 print(np.shape(Y_test))
@@ -517,17 +529,18 @@ def _run_cnn_torch_strat3(trial_epochs=[1]):
                 print(np.shape(X_test_ext))
                 print(np.shape(Y_test_ext))
                 print('[target non_target]')
-                print(np.sum(Y_train, axis=0))
+                print(np.sum(Y_train_, axis=0))
                 print(np.sum(Y_test, axis=0))
                 print(np.sum(Y_test_ext, axis=0))
 
+
                 # model = util_torch.EEGNET(eeg_ch=num_ch)
-                model = util_torch.RESNET(eeg_ch=num_ch, num_res_module_1=1, num_reduct_module_1=1)
+                model = util_torch.RESNET(eeg_ch=num_ch, num_res_module_1=2, num_reduct_module_1=1)
                 # model = util_torch.VIT(num_eegch=num_ch, num_heads=4, num_layers=1)
                 util_torch._model_summary(model)
                 # data_set_train = util_torch.EegData(X_train, Y_train)
                 # train_set, val_set = torch.utils.data.random_split(data_set_train, [0.8, 0.2])
-                X_train_, Y_train_, X_val_, Y_val_ = util_torch._manual_val_split(X_train, Y_train, ratio=0.85)
+
                 train_set = util_torch.EegData(X_train_, Y_train_)
                 val_set = util_torch.EegData(X_val_, Y_val_)
                 test_set = util_torch.EegData(X_test, Y_test)
@@ -550,13 +563,16 @@ def _run_cnn_torch_strat3(trial_epochs=[1]):
                                                     class_weight=class_weight)
 
                 result_to_save.append([TEST[0].split('.')[0], epochs,
-                                       out['loss'], out['acc'], out['prec'], out['recall'], out['f1']])
+                                       out['loss'], out['acc'], out['prec'], out['recall'], out['f1'],
+                                       out['loss_ext'], out['acc_ext'], out['prec_ext'], out['recall_ext'], out['f1_ext'], out['fp_over_allp']])
     # save_name = 'results/torch_eegnet_0ch.csv'
     # save_name = 'results/torch_vit_0ch.csv'
     save_name = 'results/torch_resnet_0ch.csv'
     with open(save_name, 'w', encoding='UTF8', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['test', 'epochs', 'loss', 'acc', 'prec', 'recall', 'f1'])
+        writer.writerow(['test', 'epochs',
+                         'loss', 'acc', 'prec', 'recall', 'f1',
+                         'ext_loss', 'ext_acc', 'ext_prec', 'ext_recall', 'ext_f1'])
         for row in result_to_save:
             writer.writerow(row)
     f.close()
@@ -699,8 +715,8 @@ def _run_csp_lda(display=False, epochs=1):
 # _run_cnn_test2(epochs=6)
 trial_epochs=[1, 2, 3, 4, 5, 6]
 # trial_epochs = [4]
-# _run_cnn_torch_strat3(trial_epochs=trial_epochs)
-_build_dataset(trial_epochs=trial_epochs)
+_run_cnn_torch_strat3(trial_epochs=trial_epochs, from_npz=True)
+# _build_dataset(trial_epochs=trial_epochs)
 
 
 # file = r'D:\Code\PycharmProjects\P300_detect\01_01_epoch11_1.npz'
