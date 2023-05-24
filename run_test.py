@@ -478,7 +478,7 @@ def _run_cnn_torch(epochs=1, flag1=True):
     return
 
 
-def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False):
+def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
     # CH_SELECT = [9, 27, 45, 59, 43, 47, 50, 56]
     # CH_SELECT = [9, 27, 45]
     CH_SELECT = False
@@ -487,9 +487,20 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False):
     else:
         num_ch = len(CH_SELECT)
     result_to_save = []
+    # save_name = 'results/torch_eegnet_0ch.csv'
+    # save_name = 'results/torch_vit_0ch.csv'
+    save_name = 'results/torch_resnet_0ch.csv'
+    if not os.path.isfile(save_name) or overwrite is True:
+        with open(save_name, 'w', encoding='UTF8', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['test', 'epochs',
+                             'loss', 'acc', 'prec', 'recall', 'f1',
+                             'ext_loss', 'ext_acc', 'ext_prec', 'ext_recall', 'ext_f1', 'fp_over_p'])
+            f.close()
+
     for epochs in trial_epochs:
         for sbj in ['01', '02', '03', '04', '06', '07', '08', '09']:
-        # for sbj in ['01']:
+        # for sbj in ['02']:
             # create TRAIN
             TRAIN = []
             for set in ['_01', '_02', '_03', '_04', '_05', '_06']:
@@ -548,6 +559,7 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False):
                                                        np.concatenate([Y_test, Y_test_ext], axis=0))
                 sum_1 = np.sum(Y_train_, axis=0)
                 class_weight = np.array([sum_1[1], sum_1[0]])/(sum_1[1] + sum_1[0])
+                print(f'Class Weight: {class_weight}')
                 class_weight = torch.from_numpy(class_weight).float()
 
                 data_lens = [len(train_set), len(val_set), len(test_set), len(test_set_ext)]
@@ -565,17 +577,25 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False):
                 result_to_save.append([TEST[0].split('.')[0], epochs,
                                        out['loss'], out['acc'], out['prec'], out['recall'], out['f1'],
                                        out['loss_ext'], out['acc_ext'], out['prec_ext'], out['recall_ext'], out['f1_ext'], out['fp_over_allp']])
+                row = [TEST[0].split('.')[0], epochs,
+                                       out['loss'], out['acc'], out['prec'], out['recall'], out['f1'],
+                                       out['loss_ext'], out['acc_ext'], out['prec_ext'], out['recall_ext'],
+                                       out['f1_ext'], out['fp_over_allp']]
+                with open(save_name, 'a', encoding='UTF8', newline='') as f:
+                    writer = csv.writer(f)
+                    writer.writerow(row)
+                f.close()
     # save_name = 'results/torch_eegnet_0ch.csv'
     # save_name = 'results/torch_vit_0ch.csv'
-    save_name = 'results/torch_resnet_0ch.csv'
-    with open(save_name, 'w', encoding='UTF8', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow(['test', 'epochs',
-                         'loss', 'acc', 'prec', 'recall', 'f1',
-                         'ext_loss', 'ext_acc', 'ext_prec', 'ext_recall', 'ext_f1'])
-        for row in result_to_save:
-            writer.writerow(row)
-    f.close()
+    # save_name = 'results/torch_resnet_0ch.csv'
+    # with open(save_name, 'w', encoding='UTF8', newline='') as f:
+    #     writer = csv.writer(f)
+    #     writer.writerow(['test', 'epochs',
+    #                      'loss', 'acc', 'prec', 'recall', 'f1',
+    #                      'ext_loss', 'ext_acc', 'ext_prec', 'ext_recall', 'ext_f1'])
+    #     for row in result_to_save:
+    #         writer.writerow(row)
+    # f.close()
 
     return
 
@@ -715,7 +735,7 @@ def _run_csp_lda(display=False, epochs=1):
 # _run_cnn_test2(epochs=6)
 trial_epochs=[1, 2, 3, 4, 5, 6]
 # trial_epochs = [4]
-_run_cnn_torch_strat3(trial_epochs=trial_epochs, from_npz=True)
+_run_cnn_torch_strat3(trial_epochs=trial_epochs, from_npz=True, overwrite=True)
 # _build_dataset(trial_epochs=trial_epochs)
 
 

@@ -151,7 +151,7 @@ class RESNET(nn.Module):
         # [12, 64, 125]
         x = self.stem_conv21(x)
         # [48, 64, 62]
-        x = func.max_pool2d(func.elu(x), (1, 3))
+        x = func.max_pool2d(func.relu(x), (1, 3))
         # [48, 64, 20]
         # x = torch.cat((self.stem_conv21(x),
         #                func.max_pool2d(func.elu(x), (1, 3), stride=(1, 2))))
@@ -161,8 +161,9 @@ class RESNET(nn.Module):
             x_2 = res_conv_22(x_2)
             x_2 = res_conv_23(x_2)
             x_m = res_conv_m(torch.cat((x_1, x_2), dim=1))
-            x = func.elu(x + x_m)
+            x = func.relu(x + x_m)
         x = self.reduct_conv1(x)
+        x = func.dropout(x, p=0.25)
         # [96, 1, 20]
         for red_conv_11, red_conv_21, red_conv_22, red_conv_31, red_conv_32, red_conv_33 in self.reduct_module_1:
             x_1 = red_conv_11(func.avg_pool2d(x, (1, 3), stride=(1, 2)))
@@ -315,9 +316,16 @@ def _compute_matrics(preds, true, print_tpr=False):
                 FP = FP + 1
     tpr = TP/(TP + FN)
     tnr = TN/(TN + FP)
-    precision = TP/(TP + FP)
-    recall = TP/(TP + FN)
-    f1 = 2*(precision*recall)/(precision + recall)
+    try:
+        precision = TP/(TP + FP)
+        recall = TP/(TP + FN)
+    except:
+        precision = 0
+        recall = 0
+    try:
+        f1 = 2*(precision*recall)/(precision + recall)
+    except:
+        f1 = 0
     balanced_acc = (tpr + tnr)/2
     if print_tpr:
         print(f'TPR: {tpr:.4f}. TNR: {tnr:.4f}. Precision: {precision:.4f}. Recall: {recall:.4f}. False Positive Rate: {FP/(FP + TN):.4f}.')
@@ -344,7 +352,7 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
     log_val_acc = []
     log_test_acc = []
     log_testext_acc = []
-    for epoch in range(200):
+    for epoch in range(100):
         running_train_loss = 0
         running_val_loss = 0
         running_test_loss = 0
@@ -439,8 +447,8 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
               f'f1: [{log_train_f1[-1]:.4f} {log_val_f1[-1]:.4f} {log_test_f1[-1]:.4f} {log_testext_f1[-1]:.4f}]')
         # Early stopping
         if len(log_val_loss) > 20:
-            vals = np.array(log_val_loss[-15:])
-            trains = np.array(log_train_loss[-15:])
+            vals = np.array(log_val_loss[-10:])
+            trains = np.array(log_train_loss[-10:])
             if ((np.amax(vals) - np.amin(vals)) < 0.0005) or ((np.amax(trains) - np.amin(trains)) < 0.0005):
                 print('Triggered early stopping.')
                 break
