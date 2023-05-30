@@ -1009,29 +1009,25 @@ def _plot_torch_acc(path):
         'acc_ext': [],
         'fp_noise': []
     }
-    acc = []
-    acc_ext = []
-    fp_noise = []
+    acc = [[], [], [], [], [], []]
+    acc_ext = [[], [], [], [], [], []]
+    fp_noise = [[], [], [], [], [], []]
     with open(path) as csv_file:
         csv_reader = csv.reader(csv_file)
         for row in csv_reader:
             if header is True:
                 header = False
-                epochs = 1
                 pass
             else:
-                if float(row[1]) == epochs:
-                    acc.append(float(row[3]))
-                    acc_ext.append(float(row[8]))
-                    fp_noise.append(float(row[11]))
-                else:
-                    epochs = float(row[1])
-                    out['acc'].append(acc)
-                    out['acc_ext'].append(acc_ext)
-                    out['fp_noise'].append(fp_noise)
-                    acc = []
-                    acc_ext = []
-                    fp_noise = []
+                acc[int(row[1]) - 1].append(float(row[3]))
+                acc_ext[int(row[1]) - 1].append(float(row[8]))
+                fp_noise[int(row[1]) - 1].append(float(row[11]))
+        # for i, ele in enumerate(acc):
+        #     acc[i] = np.array(ele)
+    out['acc'].append(acc)
+    out['acc_ext'].append(acc_ext)
+    out['fp_noise'].append(fp_noise)
+
     return out
 
 
@@ -1039,57 +1035,51 @@ def _draw_boxplot():
     file_1 = r'D:\Code\PycharmProjects\P300_detect\results_new\torch_eegnet_0ch.csv'
     file_2 = r'D:\Code\PycharmProjects\P300_detect\results_new\torch_resnet_0ch.csv'
     files = [file_1, file_2]
+    acc = []
     to_plot = []
+    labels = []
     for file in files:
         out = _plot_torch_acc(file)
-        to_plot.append(out['acc'])
+        acc.append(out['acc'])
+    spacing_counter = 0
+    x_spacing = []
+    for i in range(6):
+        spacing_counter = spacing_counter + 1
+        for j in range(len(files)):
+            if j == 0:
+                labels.append(str(i + 1) + '-trial')
+            else:
+                labels.append('')
+            to_plot.append(acc[j][0][i])
+            x_spacing.append(spacing_counter)
+            spacing_counter = spacing_counter + 1
     fig = plt.figure()
+    ax1 = fig.add_subplot(111)
+    ax1.set_title(str('Subject '))
+    ax1.set_ylabel('Prediction')
+    ax1.set_xlabel('Repetition')
+    box_dict_1 = ax1.boxplot(to_plot, labels=labels,
+                             sym='+', positions=x_spacing, patch_artist=True, showmeans=True)
+    COLOR = ['gold', 'mediumpurple']
+    for i in range(6):
+        for j in range(len(files)):
+            box_dict_1.get('boxes')[i*len(files) + j].set_facecolor(COLOR[j])
+    ax1.yaxis.grid(True)
+
+    # bp1 = ax.boxplot(data1, positions=[1, 4], notch=True, widths=0.35,
+    #                  patch_artist=True, boxprops=dict(facecolor="C0"))
+    # bp2 = ax.boxplot(data2, positions=[2, 5], notch=True, widths=0.35,
+    #                  patch_artist=True, boxprops=dict(facecolor="C2"))
+    #
+    # ax.legend([bp1["boxes"][0], bp2["boxes"][0]], ['A', 'B'], loc='upper right')
 
 
-# N = np.arange(8, 15, 1)
-# # N = 10
-# p = 1
-# N_1 = N
-# N_2 = N*(N - 1)/2
-# N_3 = (N - 1)*(p*(N - 2)/(1))
-# N_4 = (N - 2)*(p*(N - 3)/(1))
-# N_5 = (N - 3)*(p*(N - 4)/(1))
-# N_6 = (N - 4)*(p*(N - 5)/(1))
-# N_6 = (N - 3)*(p*(N - 4)*(N - 5)/(2))
-# print([N_1, N_2, N_3, N_4, N_5, N_6])
+    plt.show()
 
-def schedule_1(N, b, k):
-    # b + k = num_trials
-    out = (N - b + 1)
-    for i in range(k):
-        out = out*(N - b - (i + 1))/(i + 1)
-    return out
-
-def schedule_2(N, b, k):
-    # b + k + 1 = num_trials
-    out = (N - b + 1)*(N - b)
-    for i in range(k):
-        out = out*(N - b - 1 - (i + 1))/(i + 1)
-    return out
-
-N = np.arange(7, 35, 2)
-N_4 = []
-trials = 4
-for n in N:
-    if n < 10:
-        N_4.append(schedule_1(n, 1, 5))
-    elif n < 11:
-        N_4.append(schedule_1(n, 2, 4))
-    elif n < 12:
-        N_4.append(schedule_1(n, 3, 3))
-    elif n < 13:
-        N_4.append(schedule_1(n, 4, 2))
-    else:
-        N_4.append(schedule_1(n, 4, 2))
-print(N)
-print(N_4)
+    return
 
 
+_draw_boxplot()
 
 
 
