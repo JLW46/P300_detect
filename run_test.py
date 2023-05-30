@@ -480,8 +480,8 @@ def _run_cnn_torch(epochs=1, flag1=True):
 
 def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
     # CH_SELECT = [9, 27, 45, 59, 43, 47, 50, 56]
-    # CH_SELECT = [9, 27, 45]
-    CH_SELECT = False
+    CH_SELECT = [9, 27, 45]
+    # CH_SELECT = False
     if CH_SELECT is False:
         num_ch = 64
     else:
@@ -489,7 +489,7 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
     result_to_save = []
     # save_name = 'results/torch_eegnet_0ch.csv'
     # save_name = 'results/torch_vit_0ch.csv'
-    save_name = 'results/torch_resnet_0ch.csv'
+    save_name = 'results/torch_resnet_3ch.csv'
     if not os.path.isfile(save_name) or overwrite is True:
         with open(save_name, 'w', encoding='UTF8', newline='') as f:
             writer = csv.writer(f)
@@ -530,6 +530,11 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
                                                                                                 ch_select=CH_SELECT,
                                                                                                 num_reps=epochs)
                     X_train_, Y_train_, X_val_, Y_val_ = util_torch._manual_val_split(X_train, Y_train, ratio=0.85)
+                if CH_SELECT is not False:
+                    X_train_ = X_train_[:, :, CH_SELECT, :]
+                    X_val_ = X_val_[:, :, CH_SELECT, :]
+                    X_test = X_test[:, :, CH_SELECT, :]
+                    X_test_ext = X_test_ext[:, :, CH_SELECT, :]
                 print('train')
                 print(np.shape(X_train_))
                 print(np.shape(Y_train_))
@@ -546,7 +551,7 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
 
 
                 # model = util_torch.EEGNET(eeg_ch=num_ch)
-                model = util_torch.RESNET(eeg_ch=num_ch, num_res_module_1=2, num_reduct_module_1=1)
+                model = util_torch.RESNET(eeg_ch=num_ch, num_res_module_1=1, num_reduct_module_1=1)
                 # model = util_torch.VIT(num_eegch=num_ch, num_heads=4, num_layers=1)
                 util_torch._model_summary(model)
                 # data_set_train = util_torch.EegData(X_train, Y_train)
@@ -735,7 +740,7 @@ def _run_csp_lda(display=False, epochs=1):
 # _run_cnn_test2(epochs=6)
 trial_epochs=[1, 2, 3, 4, 5, 6]
 # trial_epochs = [4]
-_run_cnn_torch_strat3(trial_epochs=trial_epochs, from_npz=True, overwrite=True)
+_run_cnn_torch_strat3(trial_epochs=trial_epochs, from_npz=True, overwrite=False)
 # _build_dataset(trial_epochs=trial_epochs)
 
 

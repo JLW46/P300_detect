@@ -1003,30 +1003,47 @@ def _write_csv():
 
 
 def _plot_torch_acc(path):
-    fig = plt.figure()
     header = True
+    out = {
+        'acc': [],
+        'acc_ext': [],
+        'fp_noise': []
+    }
+    acc = []
+    acc_ext = []
+    fp_noise = []
     with open(path) as csv_file:
         csv_reader = csv.reader(csv_file)
-        line_count = 0
-        acc_results = [[], [], [], [], [], []]
-        auc_results = []
-        f1_results = []
         for row in csv_reader:
             if header is True:
                 header = False
+                epochs = 1
                 pass
             else:
-                acc_results[int(row[1]) - 1].append(float(row[3]))
-        # acc_results = np.array(acc_results)
-    ax1 = fig.add_subplot(111)
-    # ax1.set_title(str('Subject ' + SBJ_PLOT[0]))
-    ax1.set_ylabel('ACC')
-    ax1.set_xlabel('Repetition')
-    ax1.set_ylim([0.0, 1])
-    ax1.grid()
-    box_dict_1 = ax1.boxplot(acc_results, labels=['1', '2', '3', '4', '5', '6'],
-                             sym='+', positions=[1, 2, 3, 4, 5, 6], patch_artist=True, showmeans=True)
-    plt.show()
+                if float(row[1]) == epochs:
+                    acc.append(float(row[3]))
+                    acc_ext.append(float(row[8]))
+                    fp_noise.append(float(row[11]))
+                else:
+                    epochs = float(row[1])
+                    out['acc'].append(acc)
+                    out['acc_ext'].append(acc_ext)
+                    out['fp_noise'].append(fp_noise)
+                    acc = []
+                    acc_ext = []
+                    fp_noise = []
+    return out
+
+
+def _draw_boxplot():
+    file_1 = r'D:\Code\PycharmProjects\P300_detect\results_new\torch_eegnet_0ch.csv'
+    file_2 = r'D:\Code\PycharmProjects\P300_detect\results_new\torch_resnet_0ch.csv'
+    files = [file_1, file_2]
+    to_plot = []
+    for file in files:
+        out = _plot_torch_acc(file)
+        to_plot.append(out['acc'])
+    fig = plt.figure()
 
 
 # N = np.arange(8, 15, 1)
