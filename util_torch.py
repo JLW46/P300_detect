@@ -195,7 +195,7 @@ class VIT(nn.Module):
         self.p = 5
         self.projection = nn.Linear(self.h*25, self.num_projected_features)
         self.cls_token = nn.Parameter(torch.randn(1, 1, self.num_projected_features))
-        self.pe = nn.Parameter(torch.randn(1, self.p + 1, self.num_projected_features))
+        self.pe = nn.Parameter(torch.randn(1, self.p + 1, 1))
 
         self.transformer_layers = nn.ModuleList([])
         for i in range(self.num_layers):
@@ -221,23 +221,28 @@ class VIT(nn.Module):
 
     def forward(self, x):
         b = x.size()[0]
-        # Patching and positional embedding x[b, c, h, w=125] --> [b, p + 1, f]
+        # Patching and positional embedding x[b, c=1, h=num_ch, w=125] --> [b, p + 1, f]
         x = torch.transpose(torch.reshape(x, (-1, 1, self.h, self.p, 25)), 3, 4)
+        # x[b, c=1, h=num_ch, w=125] --> [b, c=1, h=num_ch, p=5, f=25] --> [b, c=1, h=num_ch, f=25, p=5]
         x = torch.transpose(torch.reshape(x, (-1, self.h*25, self.p)), 1, 2) # [b, p, h*25]
+        # x[b, c=1, h=num_ch, f=25, p=5] --> [b, h*f=num_ch*25, p=5] --> [b, p=5, h*f=num_ch*25]
         x = self.projection(x)
+        # x[b, p=5, h*f=num_ch*25] --> [b, p=5, proj_f=64]
         cls_token = self.cls_token.repeat(b, 1, 1)
         x = torch.cat((cls_token, x), dim=1)
-        x = x + self.pe # embedded_patches [b, p+1, projected_len]
+        # x[b, p=5, proj_f=64] cat token[b, 1, proj_f=64] --> [b, 5+1, proj_f]
+        x = x + self.pe.repeat(1, 1, self.num_projected_features)
         # transformer
         for make_qkv, softmax, multi_head_out, layer_norm_1, layer_norm_2, MLP in self.transformer_layers:
             ##### QKV #####
-            qkv = make_qkv(layer_norm_1(x)).chunk(3, dim=-1) # [b, p+1, qkv_len*num_heads]*3
-            # q: [b, p+1, qkv_len*num_heads] -> [b, p+1, num_heads, qkv_len] -> [b, num_heads, p+1, qkv_len]
+            qkv = make_qkv(layer_norm_1(x)).chunk(3, dim=-1)
+            # x[b, p+1, proj_f] --> [b, p+1, qkv_len*num_heads]*3
             q = qkv[0].reshape((b, self.p + 1, self.num_heads, self.qkv_len)).transpose(1, 2)
-            # k: [b, p+1, qkv_len*num_heads] -> [b, p+1, num_heads, qkv_len] -> [b, num_heads, p+1, qkv_len] -> [b, num_heads, qkv_len, p+1]
+            # q: [b, p+1, qkv_len*num_heads] --> [b, p+1, num_heads, qkv_len] --> [b, num_heads, p+1, qkv_len]
             k = qkv[1].reshape((b, self.p + 1, self.num_heads, self.qkv_len)).transpose(1, 2).transpose(2, 3)
-            # v: [b, p+1, qkv_len*num_heads] -> [b, p+1, num_heads, qkv_len] -> [b, num_heads, p+1, qkv_len]
+            # k: [b, p+1, qkv_len*num_heads] --> [b, p+1, num_heads, qkv_len] --> [b, num_heads, p+1, qkv_len] -> [b, num_heads, qkv_len, p+1]
             v = qkv[2].reshape((b, self.p + 1, self.num_heads, self.qkv_len)).transpose(1, 2)
+            # v: [b, p+1, qkv_len*num_heads] --> [b, p+1, num_heads, qkv_len] --> [b, num_heads, p+1, qkv_len]
             ##### Scaled Dot-Product Att #####
             # [b, num_heads, p+1, qkv_len] X [b, num_heads, qkv_len, p+1] X [b, num_heads, p+1, qkv_len] -> [b, num_heads, p+1, qkv_len]
             scaled_dot_produc_att = torch.matmul(softmax(torch.matmul(q, k)*self.scale), v)
