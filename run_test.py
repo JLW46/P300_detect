@@ -489,7 +489,7 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
     result_to_save = []
     # save_name = 'results/torch_eegnet_0ch.csv'
     save_name = 'results/torch_vit_0ch.csv'
-    # save_name = 'results/torch_resnet_3ch.csv'
+    # save_name = 'results/torch_resnet_0ch.csv'
     if not os.path.isfile(save_name) or overwrite is True:
         with open(save_name, 'w', encoding='UTF8', newline='') as f:
             writer = csv.writer(f)
@@ -526,6 +526,7 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
                     X_test_ext = loaded['x_test_ext']
                     Y_test_ext = loaded['y_test_ext']
                 else:
+                    print(item.split('.')[0] + '_epoch_' + str(epochs))
                     X_train, Y_train, X_test, Y_test, X_test_ext, Y_test_ext = util_preprocessing._build_dataset_strat3(FOLDER, TRAIN, TEST,
                                                                                                 ch_select=CH_SELECT,
                                                                                                 num_reps=epochs)
@@ -551,8 +552,8 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
 
 
                 # model = util_torch.EEGNET(eeg_ch=num_ch)
-                # model = util_torch.RESNET(eeg_ch=num_ch, num_res_module_1=1, num_reduct_module_1=1)
-                model = util_torch.VIT(num_eegch=num_ch, num_heads=4, num_layers=1)
+                model = util_torch.RESNET(eeg_ch=num_ch, num_res_module_1=1, num_reduct_module_1=1)
+                # model = util_torch.VIT(num_eegch=num_ch, num_heads=4, num_layers=1)
                 util_torch._model_summary(model)
                 # data_set_train = util_torch.EegData(X_train, Y_train)
                 # train_set, val_set = torch.utils.data.random_split(data_set_train, [0.8, 0.2])
@@ -590,17 +591,6 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
                     writer = csv.writer(f)
                     writer.writerow(row)
                 f.close()
-    # save_name = 'results/torch_eegnet_0ch.csv'
-    # save_name = 'results/torch_vit_0ch.csv'
-    # save_name = 'results/torch_resnet_0ch.csv'
-    # with open(save_name, 'w', encoding='UTF8', newline='') as f:
-    #     writer = csv.writer(f)
-    #     writer.writerow(['test', 'epochs',
-    #                      'loss', 'acc', 'prec', 'recall', 'f1',
-    #                      'ext_loss', 'ext_acc', 'ext_prec', 'ext_recall', 'ext_f1'])
-    #     for row in result_to_save:
-    #         writer.writerow(row)
-    # f.close()
 
     return
 
@@ -739,8 +729,8 @@ def _run_csp_lda(display=False, epochs=1):
 #     _run_cnn_torch()
 # _run_cnn_test2(epochs=6)
 trial_epochs=[1, 2, 3, 4, 5, 6]
-# trial_epochs = [4]
-_run_cnn_torch_strat3(trial_epochs=trial_epochs, from_npz=True, overwrite=False)
+trial_epochs = [4]
+_run_cnn_torch_strat3(trial_epochs=trial_epochs, from_npz=False, overwrite=True)
 # _build_dataset(trial_epochs=trial_epochs)
 
 

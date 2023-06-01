@@ -582,7 +582,7 @@ def _read_data_strat3(PATH, ch_select=False, norm=True, plot=False, test=False, 
     event_types = np.unique(np.array(events)).tolist()
     to_exclude = [4, 8, 32, 128, 16, 64]
     targets = [8]
-    non_targets = [4, 16, 32, 64, 128]
+    non_targets = [4, 16, 64]
     non_targets_extended = event_types
     for event in to_exclude:
         if event in non_targets_extended:
@@ -683,7 +683,7 @@ def _read_data_strat3(PATH, ch_select=False, norm=True, plot=False, test=False, 
 
 def _combos(events, label, num_reps):
     inds = list(np.where(events == label)[0])
-    n_0 = 1000
+    n_0 = 2000
     if num_reps < 3:
         combinations = list(itertools.combinations(inds, num_reps))
         random.shuffle(combinations)
@@ -715,6 +715,7 @@ def _combos(events, label, num_reps):
             for combo in combinations:
                 combinations_out.append(np.concatenate([np.array(a), np.array(combo)]))
     # print('a')
+    print(len(combinations_out))
     return combinations_out
 
 

@@ -1034,7 +1034,8 @@ def _plot_torch_acc(path):
 def _draw_boxplot():
     file_1 = r'D:\Code\PycharmProjects\P300_detect\results_new\torch_eegnet_0ch.csv'
     file_2 = r'D:\Code\PycharmProjects\P300_detect\results_new\torch_resnet_0ch.csv'
-    files = [file_1, file_2]
+    file_3 = r'D:\Code\PycharmProjects\P300_detect\results_new\torch_vit_0ch.csv'
+    files = [file_1, file_2, file_3]
     acc = []
     to_plot = []
     labels = []
@@ -1043,10 +1044,11 @@ def _draw_boxplot():
         acc.append(out['acc'])
     spacing_counter = 0
     x_spacing = []
+    label_place = int(0.5*len(files))
     for i in range(6):
         spacing_counter = spacing_counter + 1
         for j in range(len(files)):
-            if j == 0:
+            if j == label_place:
                 labels.append(str(i + 1) + '-trial')
             else:
                 labels.append('')
@@ -1060,7 +1062,7 @@ def _draw_boxplot():
     ax1.set_xlabel('Repetition')
     box_dict_1 = ax1.boxplot(to_plot, labels=labels,
                              sym='+', positions=x_spacing, patch_artist=True, showmeans=True)
-    COLOR = ['gold', 'mediumpurple']
+    COLOR = ['gold', 'mediumpurple', 'red']
     for i in range(6):
         for j in range(len(files)):
             box_dict_1.get('boxes')[i*len(files) + j].set_facecolor(COLOR[j])

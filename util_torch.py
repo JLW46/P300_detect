@@ -341,7 +341,7 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
     # optimizer = optim.SGD(model.parameters(), lr=0.0005, momentum=0.9, weight_decay=0.05)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print(device)
-    optimizer = optim.Adam(model.parameters(), lr=0.00001, weight_decay=0.0)
+    optimizer = optim.Adam(model.parameters(), lr=0.000005, weight_decay=0.01)
     criterion = nn.CrossEntropyLoss(weight=class_weight, label_smoothing=0.0)
     criterion.to(device)
     model.to(device)
