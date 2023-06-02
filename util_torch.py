@@ -195,7 +195,7 @@ class VIT(nn.Module):
         self.p = 5
         self.projection = nn.Linear(self.h*25, self.num_projected_features)
         self.cls_token = nn.Parameter(torch.randn(1, 1, self.num_projected_features))
-        self.pe = nn.Parameter(torch.randn(1, self.p + 1, 1))
+        self.pe = nn.Parameter(torch.randn(1, self.p + 1, self.num_projected_features))
 
         self.transformer_layers = nn.ModuleList([])
         for i in range(self.num_layers):
@@ -231,7 +231,7 @@ class VIT(nn.Module):
         cls_token = self.cls_token.repeat(b, 1, 1)
         x = torch.cat((cls_token, x), dim=1)
         # x[b, p=5, proj_f=64] cat token[b, 1, proj_f=64] --> [b, 5+1, proj_f]
-        x = x + self.pe.repeat(1, 1, self.num_projected_features)
+        x = x + self.pe
         # transformer
         for make_qkv, softmax, multi_head_out, layer_norm_1, layer_norm_2, MLP in self.transformer_layers:
             ##### QKV #####
@@ -333,7 +333,7 @@ def _compute_matrics(preds, true, print_tpr=False):
         f1 = 0
     balanced_acc = (tpr + tnr)/2
     if print_tpr:
-        print(f'TPR: {tpr:.4f}. TNR: {tnr:.4f}. Precision: {precision:.4f}. Recall: {recall:.4f}. False Positive Rate: {FP/(FP + TN):.4f}.')
+        print(f'Ba_acc: {balanced_acc:.4f}. TPR: {tpr:.4f}. TNR: {tnr:.4f}. Precision: {precision:.4f}. Recall: {recall:.4f}. False Positive Rate: {FP/(FP + TN):.4f}.')
     return f1, balanced_acc, precision, recall, FP/(FP + TN)
 
 
@@ -341,7 +341,7 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
     # optimizer = optim.SGD(model.parameters(), lr=0.0005, momentum=0.9, weight_decay=0.05)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print(device)
-    optimizer = optim.Adam(model.parameters(), lr=0.000005, weight_decay=0.01)
+    optimizer = optim.Adam(model.parameters(), lr=0.000005, weight_decay=0.001)
     criterion = nn.CrossEntropyLoss(weight=class_weight, label_smoothing=0.0)
     criterion.to(device)
     model.to(device)
@@ -357,7 +357,7 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
     log_val_acc = []
     log_test_acc = []
     log_testext_acc = []
-    for epoch in range(100):
+    for epoch in range(150):
         running_train_loss = 0
         running_val_loss = 0
         running_test_loss = 0
@@ -366,6 +366,7 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
         val_outputs = None
         test_outputs = None
         testext_outputs = None
+        model.train()
         for i_batch, data_batch in enumerate(train_loader):
             x = data_batch['x'].to(device)
             y = data_batch['y'].to(device)
@@ -387,6 +388,7 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
         log_train_f1.append(f1)
         log_train_acc.append(ba_acc)
         log_train_loss.append(running_train_loss/len(train_loader))
+        model.eval()
         with torch.no_grad():
             if val_loader is not None:
                 for data_batch in val_loader:

@@ -1032,49 +1032,38 @@ def _plot_torch_acc(path):
 
 
 def _draw_boxplot():
-    file_1 = r'D:\Code\PycharmProjects\P300_detect\results_new\torch_eegnet_0ch.csv'
-    file_2 = r'D:\Code\PycharmProjects\P300_detect\results_new\torch_resnet_0ch.csv'
-    file_3 = r'D:\Code\PycharmProjects\P300_detect\results_new\torch_vit_0ch.csv'
-    files = [file_1, file_2, file_3]
+
+    files = [
+        r'D:\Code\PycharmProjects\P300_detect\results_new\torch_csp_0ch.csv',
+        r'D:\Code\PycharmProjects\P300_detect\results_new\torch_eegnet_0ch.csv',
+        r'D:\Code\PycharmProjects\P300_detect\results_new\torch_resnet_0ch.csv',
+        r'D:\Code\PycharmProjects\P300_detect\results_new\torch_vit_0ch.csv'
+        ]
     acc = []
-    to_plot = []
-    labels = []
     for file in files:
         out = _plot_torch_acc(file)
         acc.append(out['acc'])
-    spacing_counter = 0
-    x_spacing = []
     label_place = int(0.5*len(files))
-    for i in range(6):
-        spacing_counter = spacing_counter + 1
-        for j in range(len(files)):
-            if j == label_place:
-                labels.append(str(i + 1) + '-trial')
-            else:
-                labels.append('')
-            to_plot.append(acc[j][0][i])
-            x_spacing.append(spacing_counter)
-            spacing_counter = spacing_counter + 1
     fig = plt.figure()
     ax1 = fig.add_subplot(111)
     ax1.set_title(str('Subject '))
     ax1.set_ylabel('Prediction')
     ax1.set_xlabel('Repetition')
-    box_dict_1 = ax1.boxplot(to_plot, labels=labels,
-                             sym='+', positions=x_spacing, patch_artist=True, showmeans=True)
-    COLOR = ['gold', 'mediumpurple', 'red']
-    for i in range(6):
-        for j in range(len(files)):
-            box_dict_1.get('boxes')[i*len(files) + j].set_facecolor(COLOR[j])
+    COLOR = ['goldenrod', 'mediumpurple', 'darkcyan', 'rosybrown']
+    boxplots = []
+    legends = []
+    for i in range(len(files)):
+        if i == label_place:
+            labels = ['1-trial', '2-trial', '3-trial', '4-trial', '5-trial', '6-trial']
+        else:
+            labels = ['', '', '', '', '', '']
+        x_spacing = np.array(range(6))*(len(files) + label_place + 1) + i
+        bp = ax1.boxplot(acc[i][0], labels=labels, sym='+', positions=x_spacing, patch_artist=True, showmeans=True,
+                    boxprops=dict(facecolor=COLOR[i]))
+        boxplots.append(bp)
+        legends.append(bp["boxes"][0])
+    ax1.legend(legends, ['csp', 'eegnet', 'resnet', 'vit'], loc='upper right')
     ax1.yaxis.grid(True)
-
-    # bp1 = ax.boxplot(data1, positions=[1, 4], notch=True, widths=0.35,
-    #                  patch_artist=True, boxprops=dict(facecolor="C0"))
-    # bp2 = ax.boxplot(data2, positions=[2, 5], notch=True, widths=0.35,
-    #                  patch_artist=True, boxprops=dict(facecolor="C2"))
-    #
-    # ax.legend([bp1["boxes"][0], bp2["boxes"][0]], ['A', 'B'], loc='upper right')
-
 
     plt.show()
 
