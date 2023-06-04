@@ -341,7 +341,7 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
     # optimizer = optim.SGD(model.parameters(), lr=0.0005, momentum=0.9, weight_decay=0.05)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print(device)
-    optimizer = optim.Adam(model.parameters(), lr=0.000005, weight_decay=0.001)
+    optimizer = optim.Adam(model.parameters(), lr=0.00002, weight_decay=0.00)
     criterion = nn.CrossEntropyLoss(weight=class_weight, label_smoothing=0.0)
     criterion.to(device)
     model.to(device)
@@ -456,7 +456,7 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
         if len(log_val_loss) > 20:
             vals = np.array(log_val_loss[-10:])
             trains = np.array(log_train_loss[-10:])
-            if ((np.amax(vals) - np.amin(vals)) < 0.0005) or ((np.amax(trains) - np.amin(trains)) < 0.0005):
+            if ((np.amax(vals) - np.amin(vals)) < 0.0005) or ((np.amax(trains) - np.amin(trains)) < 0.0002):
                 print('Triggered early stopping.')
                 break
 

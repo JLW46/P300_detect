@@ -1035,9 +1035,15 @@ def _draw_boxplot():
 
     files = [
         r'D:\Code\PycharmProjects\P300_detect\results_new\torch_csp_0ch.csv',
+        # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_eegnet_0ch.csv',
+        # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_eegnet_0ch_0530.csv',
         r'D:\Code\PycharmProjects\P300_detect\results_new\torch_eegnet_0ch.csv',
+        # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_resnet_0ch_0526.csv',
         r'D:\Code\PycharmProjects\P300_detect\results_new\torch_resnet_0ch.csv',
-        r'D:\Code\PycharmProjects\P300_detect\results_new\torch_vit_0ch.csv'
+        # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_vit_0ch_0601.csv',
+        r'D:\Code\PycharmProjects\P300_detect\results_new\torch_vit_0ch_0602.csv',
+        # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_vit_0ch_0603.csv',
+        # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_vit_0ch.csv'
         ]
     acc = []
     for file in files:
@@ -1057,7 +1063,7 @@ def _draw_boxplot():
             labels = ['1-trial', '2-trial', '3-trial', '4-trial', '5-trial', '6-trial']
         else:
             labels = ['', '', '', '', '', '']
-        x_spacing = np.array(range(6))*(len(files) + label_place + 1) + i
+        x_spacing = np.array(range(6))*(len(files) + label_place + 2) + i
         bp = ax1.boxplot(acc[i][0], labels=labels, sym='+', positions=x_spacing, patch_artist=True, showmeans=True,
                     boxprops=dict(facecolor=COLOR[i]))
         boxplots.append(bp)
