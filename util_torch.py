@@ -341,7 +341,7 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
     # optimizer = optim.SGD(model.parameters(), lr=0.0005, momentum=0.9, weight_decay=0.05)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print(device)
-    optimizer = optim.Adam(model.parameters(), lr=0.00002, weight_decay=0.00)
+    optimizer = optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.005)
     criterion = nn.CrossEntropyLoss(weight=class_weight, label_smoothing=0.0)
     criterion.to(device)
     model.to(device)
@@ -357,6 +357,9 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
     log_val_acc = []
     log_test_acc = []
     log_testext_acc = []
+    best_val_acc = 0
+    best_val_loss = 100
+    epoch_since_last_best = 0
     for epoch in range(150):
         running_train_loss = 0
         running_val_loss = 0
@@ -443,37 +446,60 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
                         testext_labels = torch.cat((testext_labels, y), dim=0)
                 _, testext_predicts = torch.max(testext_outputs, dim=1)
                 _, testext_labels = torch.max(testext_labels, dim=1)
-                f1_testext, ba_acc_testext, precision_testext, recall_testext, fp_over_allp = _compute_matrics(testext_predicts, testext_labels, print_tpr=True)
+                f1_testext, ba_acc_testext, precision_testext, recall_testext, fp_over_alln = _compute_matrics(testext_predicts, testext_labels, print_tpr=False)
                 log_testext_f1.append(f1_testext)
                 log_testext_acc.append(ba_acc_testext)
                 log_testext_loss.append(running_testext_loss / len(testext_loader))
         print(f'epoch: {epoch} '
-              f'loss: [{running_train_loss/len(train_loader):.4f} {running_val_loss/len(val_loader):.4f} '
+              f' loss: [{running_train_loss/len(train_loader):.4f} {running_val_loss/len(val_loader):.4f} '
               f'{running_test_loss/len(test_loader):.4f} {running_testext_loss/len(testext_loader):.4f}] '
-              f'ba_acc: [{log_train_acc[-1]:.4f} {log_val_acc[-1]:.4f} {log_test_acc[-1]:.4f} {log_testext_acc[-1]:.4f}]'
-              f'f1: [{log_train_f1[-1]:.4f} {log_val_f1[-1]:.4f} {log_test_f1[-1]:.4f} {log_testext_f1[-1]:.4f}]')
+              f' ba_acc: [{log_train_acc[-1]:.4f} {log_val_acc[-1]:.4f} {log_test_acc[-1]:.4f} {log_testext_acc[-1]:.4f}]'
+              f' f1: [{log_train_f1[-1]:.4f} {log_val_f1[-1]:.4f} {log_test_f1[-1]:.4f} {log_testext_f1[-1]:.4f}]'
+              f' *fp*: {fp_over_alln:.4f}')
+        # if log_val_acc[-1] > best_val_acc:
+        if log_val_loss[-1] <= best_val_loss:
+            # store results
+            # best_val_acc = log_val_acc[-1]
+            best_val_loss = log_val_loss[-1]
+            out = {
+                'acc': log_test_acc[-1],
+                'prec': precision_test,
+                'recall': recall_test,
+                'f1': log_test_f1[-1],
+                'loss': log_test_loss[-1],
+                'acc_ext': log_testext_acc[-1],
+                'prec_ext': precision_testext,
+                'recall_ext': recall_testext,
+                'f1_ext': log_testext_f1[-1],
+                'loss_ext': log_testext_loss[-1],
+                'fp_over_allp': fp_over_alln
+            }
+            epoch_since_last_best = 0
+        else:
+            epoch_since_last_best = epoch_since_last_best + 1
+
         # Early stopping
-        if len(log_val_loss) > 20:
+        if len(log_val_loss) > 29:
             vals = np.array(log_val_loss[-10:])
             trains = np.array(log_train_loss[-10:])
-            if ((np.amax(vals) - np.amin(vals)) < 0.0005) or ((np.amax(trains) - np.amin(trains)) < 0.0002):
+            if ((np.amax(vals) - np.amin(vals)) < 0.0005) or ((np.amax(trains) - np.amin(trains)) < 0.0002) or (epoch_since_last_best > 20):
                 print('Triggered early stopping.')
                 break
-
-    print(f'Finished! TEST ACC: {ba_acc_test:.4f} PRECISION: {precision_test:.4f} RECALL: {recall_test:.4f} F1: {f1_test:.4f}')
-    out = {
-        'acc': ba_acc_test,
-        'prec': precision_test,
-        'recall': recall_test,
-        'f1': f1_test,
-        'loss': log_test_loss[-1],
-        'acc_ext': ba_acc_testext,
-        'prec_ext': precision_testext,
-        'recall_ext': recall_testext,
-        'f1_ext': f1_testext,
-        'loss_ext': log_testext_loss[-1],
-        'fp_over_allp': fp_over_allp
-    }
+    print(out)
+    # print(f'Finished! TEST ACC: {ba_acc_test:.4f} PRECISION: {precision_test:.4f} RECALL: {recall_test:.4f} F1: {f1_test:.4f}')
+    # out = {
+    #     'acc': ba_acc_test,
+    #     'prec': precision_test,
+    #     'recall': recall_test,
+    #     'f1': f1_test,
+    #     'loss': log_test_loss[-1],
+    #     'acc_ext': ba_acc_testext,
+    #     'prec_ext': precision_testext,
+    #     'recall_ext': recall_testext,
+    #     'f1_ext': f1_testext,
+    #     'loss_ext': log_testext_loss[-1],
+    #     'fp_over_allp': fp_over_alln
+    # }
     # ax_loss = fig.add_subplot(121, title="Loss")
     # ax_acc = fig.add_subplot(122, title="ACC")
     # ax_loss.set_xlim([0, 200])

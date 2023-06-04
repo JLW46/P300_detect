@@ -312,8 +312,8 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
         num_ch = len(CH_SELECT)
     result_to_save = []
     # save_name = 'results/torch_eegnet_0ch.csv'
-    save_name = 'results/torch_vit_0ch.csv'
-    # save_name = 'results/torch_resnet_0ch.csv'
+    # save_name = 'results/torch_vit_0ch.csv'
+    save_name = 'results/torch_resnet_0ch.csv'
     if not os.path.isfile(save_name) or overwrite is True:
         with open(save_name, 'w', encoding='UTF8', newline='') as f:
             writer = csv.writer(f)
@@ -346,7 +346,7 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
                     X_test_ext = loaded['x_test_ext']
                     Y_test_ext = loaded['y_test_ext']
                 else:
-                    FOLDER = r'D:\Code\PycharmProjects\P300_detect\data\SEP BCI 125 0-20 with noise'
+                    FOLDER = r'data\SEP BCI 125 0-20 with noise'
                     X_train, Y_train, X_test, Y_test, X_test_ext, Y_test_ext = util_preprocessing._build_dataset_strat3(FOLDER, TRAIN, TEST,
                                                                                                 num_reps=epochs)
                     X_train_, Y_train_, X_val_, Y_val_ = util_torch._manual_val_split(X_train, Y_train, ratio=0.85)
@@ -373,8 +373,8 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
                 print(load_name)
 
                 # model = util_torch.EEGNET(eeg_ch=num_ch)
-                # model = util_torch.RESNET(eeg_ch=num_ch, num_res_module_1=1, num_reduct_module_1=1)
-                model = util_torch.VIT(num_eegch=num_ch, num_heads=4, num_layers=1)
+                model = util_torch.RESNET(eeg_ch=num_ch, num_res_module_1=1, num_reduct_module_1=1)
+                # model = util_torch.VIT(num_eegch=num_ch, num_heads=4, num_layers=1)
                 util_torch._model_summary(model)
 
                 train_set = util_torch.EegData(X_train_, Y_train_)
