@@ -66,16 +66,20 @@ class EEGNET(nn.Module):
                                padding='valid')
         self.bn3 = nn.BatchNorm2d(num_features=16)
         self.fc1 = nn.Linear(80, 2)
+        self.drop1 = nn.Dropout(0.25)
+        self.drop2 = nn.Dropout(0.5)
 
     def forward(self, x):
         # Block 1
         x = self.bn1(self.conv1(x)) # [8, ch, 125]
         x = self.bn2(self.conv2(x)) # [16, 1, 125]
-        x = func.dropout(input=(func.avg_pool2d(func.elu(x), (1, 5))), p=0.25) # [16, 1, 25]
+        x = func.avg_pool2d(func.elu(x), (1, 5))
+        x = self.drop1(x) # [16, 1, 25]
         # Block 2
         x = self.conv3(x)
         x = self.bn3(self.conv4(x)) # [16, 1, 25]
-        x = func.dropout(input=(func.avg_pool2d(func.elu(x), (1, 5))), p=0.5) # [16, 1, 5]
+        x = func.avg_pool2d(func.elu(x), (1, 5))
+        x = self.drop2(x) # [16, 1, 5]
         x = torch.flatten(input=x, start_dim=1) # [80]
         x = func.softmax(self.fc1(x), dim=-1) # [2]
         return x
@@ -143,6 +147,9 @@ class RESNET(nn.Module):
                           padding='same'),  # branch 3
             ]))
         self.fc1 = nn.Linear(384, 2)
+        self.drop1 = nn.Dropout(p=0.25)
+        self.drop2 = nn.Dropout(p=0.5)
+
     def forward(self, x):
         # [1, 64, 125]
         x = torch.cat((self.stem_conv11(x),
@@ -163,7 +170,7 @@ class RESNET(nn.Module):
             x_m = res_conv_m(torch.cat((x_1, x_2), dim=1))
             x = func.relu(x + x_m)
         x = self.reduct_conv1(x)
-        x = func.dropout(x, p=0.25)
+        x = self.drop1(x)
         # [96, 1, 20]
         for red_conv_11, red_conv_21, red_conv_22, red_conv_31, red_conv_32, red_conv_33 in self.reduct_module_1:
             x_1 = red_conv_11(func.avg_pool2d(x, (1, 3), stride=(1, 2)))
@@ -176,7 +183,8 @@ class RESNET(nn.Module):
         # [96, 1, 9]
         x = func.avg_pool2d(x, (1, 3), stride=(1, 2))
         x = torch.flatten(input=x, start_dim=1)
-        x = func.dropout(x, p=0.5)
+        # x = func.dropout(x, p=0.5)
+        x = self.drop2(x)
         out = func.softmax(self.fc1(x), dim=-1)
 
         return out
@@ -366,6 +374,8 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
         val_outputs = None
         test_outputs = None
         testext_outputs = None
+
+        model.train()
         for i_batch, data_batch in enumerate(train_loader):
             x = data_batch['x'].to(device)
             y = data_batch['y'].to(device)
@@ -387,6 +397,8 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
         log_train_f1.append(f1)
         log_train_acc.append(ba_acc)
         log_train_loss.append(running_train_loss/len(train_loader))
+
+        model.eval()
         with torch.no_grad():
             if val_loader is not None:
                 for data_batch in val_loader:

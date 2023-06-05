@@ -651,17 +651,17 @@ def _read_data_strat3(PATH, ch_select=False, norm=True, plot=False, test=False, 
     elif test is True:
         for label in targets:
             inds = list(np.where(events == label)[0])
-            for i in range(len(inds) - num_reps):
+            for i in range(len(inds) - num_reps + 1):
                 X_test.append(np.mean(X[list(inds[i:i + num_reps])], axis=0))
                 Y_test.append([1, 0])
             for label in non_targets:
                 inds = list(np.where(events == label)[0])
-                for i in range(len(inds) - num_reps):
+                for i in range(len(inds) - num_reps + 1):
                     X_test.append(np.mean(X[list(inds[i:i + num_reps])], axis=0))
                     Y_test.append([0, 1])
             for label in non_targets_extended:
                 inds = list(np.where(events == label)[0])
-                for i in range(len(inds) - num_reps):
+                for i in range(len(inds) - num_reps + 1):
                     X_test_ext.append(np.mean(X[list(inds[i:i + num_reps])], axis=0))
                     Y_test_ext.append([0, 1])
     X_train = np.array(X_train)

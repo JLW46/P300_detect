@@ -1,22 +1,22 @@
 import json
-import keras.backend
+# import keras.backend
 import numpy as np
 import os
-import scipy
-import mne
-import matplotlib.pyplot as plt
-import sklearn.metrics
+# import scipy
+# import mne
+# import matplotlib.pyplot as plt
+# import sklearn.metrics
 import csv
 
 import util_preprocessing
-import util_tf
+# import util_tf
 import util_torch
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.model_selection import ShuffleSplit, cross_val_score
-from mne import Epochs, pick_types, events_from_annotations
-from mne.channels import make_standard_montage
-from mne.io import concatenate_raws, read_raw_edf
-from mne.datasets import eegbci
+# from sklearn.model_selection import ShuffleSplit, cross_val_score
+# from mne import Epochs, pick_types, events_from_annotations
+# from mne.channels import make_standard_montage
+# from mne.io import concatenate_raws, read_raw_edf
+# from mne.datasets import eegbci
 from mne.decoding import CSP
 
 import torch
@@ -199,7 +199,10 @@ TEST = [
 
 
 # FOLDER = r'D:/Code/PycharmProjects/P300_detect/data/SEP BCI 125 0-20 no ICA'
-FOLDER = r'D:\Code\PycharmProjects\P300_detect\data\SEP BCI 125 0-20 with noise'
+#FOLDER = r'D:\Code\PycharmProjects\P300_detect\data\SEP BCI 125 0-20 with noise'
+FOLDER = r'F:\HKU_Internship\SEP BCI 125 0-20 with noise'
+
+'''
 def _run_cnn_test():
     # out_len = 1, AUC
     CLASS = {
@@ -287,7 +290,9 @@ def _run_cnn_test():
         print(best_acc)
 
     print('DONE!')
+'''
 
+'''
 def _run_cnn_test2(epochs=1):
     # out_len = 2, CategoricalCrossEntropy
     CLASS = {
@@ -395,8 +400,9 @@ def _run_cnn_test2(epochs=1):
             #     model.save(SAVE_PATH + TEST[0].split('.')[0] + '_iter_' + str(callback_1.best_scores['epoch']))
 
     return
+'''
 
-def _run_cnn_torch(epochs=1, flag1=True):
+'''def _run_cnn_torch(epochs=1, flag1=True):
     CLASS = {
         '4': [0, 1],  # nt estim
         '8': [1, 0],  # t estim
@@ -467,7 +473,7 @@ def _run_cnn_torch(epochs=1, flag1=True):
                 result_to_save.append([TEST[0].split('.')[0], epochs,
                                        out['loss'], out['acc'], out['prec'], out['recall'], out['f1']])
     # save_name = 'results/torch_eegnet_0ch.csv'
-    save_name = 'results/torch_vit_0ch.csv'
+    save_name = 'result/torch_vit_0ch.csv'
     with open(save_name, 'w', encoding='UTF8', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['test', 'epochs', 'loss', 'acc', 'prec', 'recall', 'f1'])
@@ -475,10 +481,10 @@ def _run_cnn_torch(epochs=1, flag1=True):
             writer.writerow(row)
     f.close()
 
-    return
+    return'''
 
 
-def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
+def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=False):
     # CH_SELECT = [9, 27, 45, 59, 43, 47, 50, 56]
     # CH_SELECT = [9, 27, 45]
     CH_SELECT = False
@@ -487,8 +493,8 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
     else:
         num_ch = len(CH_SELECT)
     result_to_save = []
-    # save_name = 'results/torch_eegnet_0ch.csv'
-    save_name = 'results/torch_vit_0ch.csv'
+    save_name = 'F:/HKU_Internship/result/torch_eegnet_0ch.csv'
+    # save_name = 'F:/HKU_Internship/result/torch_vit_0ch.csv'
     # save_name = 'results/torch_resnet_3ch.csv'
     if not os.path.isfile(save_name) or overwrite is True:
         with open(save_name, 'w', encoding='UTF8', newline='') as f:
@@ -550,10 +556,12 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
                 print(np.sum(Y_test_ext, axis=0))
 
 
-                # model = util_torch.EEGNET(eeg_ch=num_ch)
+                model = util_torch.EEGNET(eeg_ch=num_ch)
                 # model = util_torch.RESNET(eeg_ch=num_ch, num_res_module_1=1, num_reduct_module_1=1)
-                model = util_torch.VIT(num_eegch=num_ch, num_heads=4, num_layers=1)
-                util_torch._model_summary(model)
+                # model = util_torch.VIT(num_eegch=num_ch, num_heads=4, num_layers=1)
+
+                # util_torch._model_summary(model)
+
                 # data_set_train = util_torch.EegData(X_train, Y_train)
                 # train_set, val_set = torch.utils.data.random_split(data_set_train, [0.8, 0.2])
 
@@ -605,7 +613,7 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
     return
 
 
-def _build_dataset(trial_epochs):
+'''def _build_dataset(trial_epochs):
     CH_SELECT = False
     if CH_SELECT is False:
         num_ch = 64
@@ -650,9 +658,9 @@ def _build_dataset(trial_epochs):
                 #     'Y4': Y_test_ext.tolist()
                 # }
                 # with open(save_name, 'w') as file:
-                #     json.dump(data_save, file)
+                #     json.dump(data_save, file)'''
 
-def _run_csp_lda(display=False, epochs=1):
+'''def _run_csp_lda(display=False, epochs=1):
     CLASS = {
         '4': [0],  # nt estim
         '8': [1],  # t estim
@@ -730,7 +738,7 @@ def _run_csp_lda(display=False, epochs=1):
     #     display.plot()
     #     plt.show()
 
-    return
+    return'''
 
 # for i in [1, 2, 3, 4, 5, 6]:
 # for i in [5, 6]:
@@ -738,9 +746,9 @@ def _run_csp_lda(display=False, epochs=1):
 #     _run_cnn_test2(epochs=i)
 #     _run_cnn_torch()
 # _run_cnn_test2(epochs=6)
-trial_epochs=[1, 2, 3, 4, 5, 6]
-# trial_epochs = [4]
-_run_cnn_torch_strat3(trial_epochs=trial_epochs, from_npz=True, overwrite=False)
+# trial_epochs=[1, 2, 3, 4, 5, 6]
+trial_epochs = [3]
+_run_cnn_torch_strat3(trial_epochs=trial_epochs, from_npz=False, overwrite=False)
 # _build_dataset(trial_epochs=trial_epochs)
 
 
