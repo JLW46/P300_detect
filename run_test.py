@@ -313,7 +313,8 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
     result_to_save = []
     # save_name = 'results/torch_eegnet_0ch.csv'
     # save_name = 'results/torch_vit_0ch.csv'
-    save_name = 'results/torch_resnet_0ch.csv'
+    save_name = 'results/torch_convvit_0ch.csv'
+    # save_name = 'results/torch_resnet_0ch_tbc.csv'
     if not os.path.isfile(save_name) or overwrite is True:
         with open(save_name, 'w', encoding='UTF8', newline='') as f:
             writer = csv.writer(f)
@@ -333,7 +334,7 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
                 TEST = [item]
             # if True:
             #     TEST = ['01_01.set']
-                batch_size_schedule = [8, 16, 32, 32, 32, 32]
+                batch_size_schedule = [8, 64, 128, 256, 256, 256]
                 if from_npz:
                     load_name = os.path.join('D:/Data/SEP w noise/', load_name)
                     loaded = np.load(load_name)
@@ -373,8 +374,9 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
                 print(load_name)
 
                 # model = util_torch.EEGNET(eeg_ch=num_ch)
-                model = util_torch.RESNET(eeg_ch=num_ch, num_res_module_1=1, num_reduct_module_1=1)
+                # model = util_torch.RESNET(eeg_ch=num_ch, num_res_module_1=1, num_reduct_module_1=1)
                 # model = util_torch.VIT(num_eegch=num_ch, num_heads=4, num_layers=1)
+                model = util_torch.convVIT(num_eegch=num_ch, num_heads=4, num_layers=1)
                 util_torch._model_summary(model)
 
                 train_set = util_torch.EegData(X_train_, Y_train_)

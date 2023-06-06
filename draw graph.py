@@ -1035,27 +1035,35 @@ def _draw_boxplot():
 
     files = [
         r'D:\Code\PycharmProjects\P300_detect\results_new\torch_csp_0ch.csv',
-        # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_eegnet_0ch.csv',
-        # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_eegnet_0ch_0530.csv',
+        # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_csp_8ch_16comp.csv',
+        # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_csp_3ch.csv',
         r'D:\Code\PycharmProjects\P300_detect\results_new\torch_eegnet_0ch.csv',
+        # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_eegnet_8ch.csv',
+        # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_eegnet_3ch.csv',
         # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_resnet_0ch_0526.csv',
-        r'D:\Code\PycharmProjects\P300_detect\results_new\torch_resnet_0ch.csv',
+        # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_resnet_0ch.csv',
+        r'D:\Code\PycharmProjects\P300_detect\results_new\torch_resnet_0ch_1L.csv',
+        # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_resnet_0ch_2L.csv',
+        # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_resnet_0ch_3L.csv',
+        # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_resnet_8ch.csv',
+        # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_resnet_3ch.csv',
         # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_vit_0ch_0601.csv',
-        r'D:\Code\PycharmProjects\P300_detect\results_new\torch_vit_0ch_0602.csv',
-        # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_vit_0ch_0603.csv',
+        # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_vit_0ch_0602.csv',
+        r'D:\Code\PycharmProjects\P300_detect\results_new\torch_vit_0ch_0603.csv',
         # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_vit_0ch.csv'
         ]
     acc = []
     for file in files:
         out = _plot_torch_acc(file)
+        # acc.append(out['acc'])
         acc.append(out['acc'])
     label_place = int(0.5*len(files))
     fig = plt.figure()
     ax1 = fig.add_subplot(111)
-    ax1.set_title(str('Subject '))
-    ax1.set_ylabel('Prediction')
-    ax1.set_xlabel('Repetition')
-    COLOR = ['goldenrod', 'mediumpurple', 'darkcyan', 'rosybrown']
+    ax1.set_title(str('Test'), fontsize=32)
+    ax1.set_ylabel('Balanced Accuracy', fontsize=24)
+    ax1.set_xlabel('Number of Trials', fontsize=24)
+    COLOR = ['mistyrose', 'mediumpurple', 'powderblue', 'gold', 'red', 'blue', 'rosybrown', 'red', 'blue']
     boxplots = []
     legends = []
     for i in range(len(files)):
@@ -1064,11 +1072,20 @@ def _draw_boxplot():
         else:
             labels = ['', '', '', '', '', '']
         x_spacing = np.array(range(6))*(len(files) + label_place + 2) + i
-        bp = ax1.boxplot(acc[i][0], labels=labels, sym='+', positions=x_spacing, patch_artist=True, showmeans=True,
-                    boxprops=dict(facecolor=COLOR[i]))
+        bp = ax1.boxplot(acc[i][0], labels=labels, positions=x_spacing, patch_artist=True, showmeans=True,
+                         boxprops=dict(facecolor=COLOR[i], linewidth=2),
+                         whiskerprops=dict(linewidth=2),
+                         capprops=dict(linewidth=2),
+                         flierprops=dict(marker='+', markersize=12),
+                         meanprops=dict(markersize=12, color='black'),
+                         medianprops=dict(linewidth=3, color='black'))
         boxplots.append(bp)
         legends.append(bp["boxes"][0])
-    ax1.legend(legends, ['csp', 'eegnet', 'resnet', 'vit'], loc='upper right')
+    font = font_manager.FontProperties(style='normal', size=24)
+    ax1.legend(legends, ['csp', 'eegnet', 'resnet', 'vit'], loc='upper left', prop=font)
+    ax1.tick_params(axis='both', which='major', labelsize=24)
+    ax1.set_ylim([0.4, 1])
+    # ax1.legend(legends, ['csp_0', 'csp_8', 'csp_3', 'eegnet_0', 'eegnet_8', 'eegnet_3', 'resnet_0', 'resnet_8', 'resnet_3'], loc='upper right')
     ax1.yaxis.grid(True)
 
     plt.show()

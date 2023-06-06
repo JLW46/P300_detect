@@ -254,6 +254,128 @@ class VIT(nn.Module):
         out = self.MLP_head(x[:, 0, :])
         return out
 
+
+class convVIT(nn.Module):
+    def __init__(self, num_eegch, num_heads, num_layers):
+        # in_shape = [C_ch, H_eegch, W_time] [1, 64, 125]
+        super(convVIT, self).__init__()
+        self.stem_conv11 = nn.Conv2d(in_channels=1, out_channels=4,
+                                     kernel_size=(1, 7), stride=(1, 1),
+                                     padding='same')
+        self.stem_conv12 = nn.Conv2d(in_channels=1, out_channels=4,
+                                     kernel_size=(1, 15), stride=(1, 1),
+                                     padding='same')
+        self.stem_conv13 = nn.Conv2d(in_channels=1, out_channels=4,
+                                     kernel_size=(1, 31), stride=(1, 1),
+                                     padding='same')
+        self.stem_conv14 = nn.Conv2d(in_channels=1, out_channels=4,
+                                     kernel_size=(1, 61), stride=(1, 1),
+                                     padding='same')
+        self.stem_conv2 = nn.Conv2d(in_channels=16, out_channels=32,
+                                     kernel_size=(1, 1), stride=(1, 1),
+                                     padding='same')
+        self.bn1 = nn.BatchNorm2d(num_features=32)
+        self.stem_conv3 = nn.Conv2d(in_channels=32, out_channels=32,
+                                     kernel_size=(num_eegch, 1), stride=(1, 1),
+                                     padding='valid', groups=16)
+        self.stem_conv4 = nn.Conv2d(in_channels=32, out_channels=32,
+                                    kernel_size=(1, 1), stride=(1, 1),
+                                    padding='same')
+        self.bn2 = nn.BatchNorm2d(num_features=32)
+        self.stem_conv5 = nn.Conv2d(in_channels=32, out_channels=128,
+                                    kernel_size=(1, 5), stride=(1, 5),
+                                    padding='valid', groups=32)
+        self.stem_conv6 = nn.Conv2d(in_channels=128, out_channels=64,
+                                    kernel_size=(1, 1), stride=(1, 1),
+                                    padding='same')
+        self.bn3 = nn.BatchNorm2d(num_features=64)
+        self.num_projected_features = 24
+        self.qkv_len = 16
+        self.scale = self.qkv_len**(-0.5)
+        self.h = num_eegch
+        self.num_heads = num_heads
+        self.num_layers = num_layers
+        self.p = 5
+        self.projection = nn.Linear(64*5, self.num_projected_features)
+        self.cls_token = nn.Parameter(torch.randn(1, 1, self.num_projected_features))
+        self.pe = nn.Parameter(torch.randn(1, self.p + 1, self.num_projected_features))
+
+        self.transformer_layers = nn.ModuleList([])
+        for i in range(self.num_layers):
+            self.transformer_layers.append(nn.ModuleList([
+                nn.Linear(self.num_projected_features, 3 * self.qkv_len * self.num_heads), # make qkv
+                nn.Softmax(dim=-1), # scaled dot product att softmax
+                nn.Linear(self.num_heads * self.qkv_len, self.num_projected_features), # multi head out
+                nn.LayerNorm(self.num_projected_features),
+                nn.LayerNorm(self.num_projected_features),
+                nn.Sequential(nn.Linear(self.num_projected_features, 2*self.num_projected_features),
+                              nn.GELU(),
+                              nn.Dropout(0.25),
+                              nn.Linear(2*self.num_projected_features, self.num_projected_features),
+                              nn.Dropout(0.25))
+            ]))
+        self.MLP_head = nn.Sequential(nn.LayerNorm(self.num_projected_features),
+                                      nn.Dropout(0.5),
+                                      nn.Linear(self.num_projected_features, 2),
+                                      nn.Softmax(dim=-1))
+
+    def forward(self, x):
+        b = x.size()[0]
+        # Stem
+        x = torch.cat((self.stem_conv11(x),
+                       self.stem_conv12(x),
+                       self.stem_conv13(x),
+                       self.stem_conv14(x)), dim=1)
+        x = func.relu(x)
+        x = self.stem_conv2(x)
+        x = self.bn1(x)
+        # x[12, 64, 125]
+        x = self.stem_conv3(x)
+        # x[24, 1, 125]
+        x = self.stem_conv4(x)
+        x = self.bn2(x)
+        x = self.stem_conv5(x)
+        x = self.stem_conv6(x)
+        x = self.bn3(x)
+        x = func.relu(x)
+        # x[96, 1, 25]
+
+        # Patching and positional embedding x[b, c=96, h=1, w=25] --> [b, p + 1, f]
+        x = torch.transpose(torch.reshape(x, (-1, 64, 1, self.p, 5)), 3, 4)
+        # x[b, c=96, h=1, w=25] --> [b, c=96, h=1, p=5, f=5] --> [b, c=96, h=1, f=5, p=5]
+        ######## x[b, c=1, h=num_ch, w=125] --> [b, c=1, h=num_ch, p=5, f=25] --> [b, c=1, h=num_ch, f=25, p=5]
+        x = torch.transpose(torch.reshape(x, (-1, 64*5, self.p)), 1, 2)
+        # x[b, c=96, h=1, f=5, p=5] --> [b, c*h*f, p=5] --> [b, p=5, c*h*f]
+        ######## x[b, c=1, h=num_ch, f=25, p=5] --> [b, h*f=num_ch*25, p=5] --> [b, p=5, h*f=num_ch*25]
+        x = self.projection(x)
+        # x[b, p=5, c*h*f] --> [b, p=5, proj_f=24]
+        cls_token = self.cls_token.repeat(b, 1, 1)
+        x = torch.cat((cls_token, x), dim=1)
+        # x[b, p=5, proj_f=64] cat token[b, 1, proj_f=64] --> [b, 5+1, proj_f]
+        x = x + self.pe
+        # transformer
+        for make_qkv, softmax, multi_head_out, layer_norm_1, layer_norm_2, MLP in self.transformer_layers:
+            ##### QKV #####
+            qkv = make_qkv(layer_norm_1(x)).chunk(3, dim=-1)
+            # x[b, p+1, proj_f] --> [b, p+1, qkv_len*num_heads]*3
+            q = qkv[0].reshape((b, self.p + 1, self.num_heads, self.qkv_len)).transpose(1, 2)
+            # q: [b, p+1, qkv_len*num_heads] --> [b, p+1, num_heads, qkv_len] --> [b, num_heads, p+1, qkv_len]
+            k = qkv[1].reshape((b, self.p + 1, self.num_heads, self.qkv_len)).transpose(1, 2).transpose(2, 3)
+            # k: [b, p+1, qkv_len*num_heads] --> [b, p+1, num_heads, qkv_len] --> [b, num_heads, p+1, qkv_len] -> [b, num_heads, qkv_len, p+1]
+            v = qkv[2].reshape((b, self.p + 1, self.num_heads, self.qkv_len)).transpose(1, 2)
+            # v: [b, p+1, qkv_len*num_heads] --> [b, p+1, num_heads, qkv_len] --> [b, num_heads, p+1, qkv_len]
+            ##### Scaled Dot-Product Att #####
+            # [b, num_heads, p+1, qkv_len] X [b, num_heads, qkv_len, p+1] X [b, num_heads, p+1, qkv_len] -> [b, num_heads, p+1, qkv_len]
+            scaled_dot_produc_att = torch.matmul(softmax(torch.matmul(q, k)*self.scale), v)
+            # [b, num_heads, p+1, qkv_len] -> [b, p+1, num_heads*qkv_len] -> [b, p+1, projected_len]
+            multi_head_att = multi_head_out(scaled_dot_produc_att.transpose(1, 2).reshape((b, self.p + 1, self.num_heads*self.qkv_len)))
+            x = multi_head_att + x
+            ##### MLP #####
+            x = MLP(layer_norm_2(x)) + x
+        out = self.MLP_head(x[:, 0, :])
+        return out
+
+
 # a = torch.randn(10, 3, 2, 4)
 # print(a[0, 1, 1, :])
 # a = a.transpose(1, 2) # [10, 2, 3, 4]
@@ -338,10 +460,10 @@ def _compute_matrics(preds, true, print_tpr=False):
 
 
 def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_weight):
-    # optimizer = optim.SGD(model.parameters(), lr=0.0005, momentum=0.9, weight_decay=0.05)
+    # optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=0.00)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print(device)
-    optimizer = optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.005)
+    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=0.00)
     criterion = nn.CrossEntropyLoss(weight=class_weight, label_smoothing=0.0)
     criterion.to(device)
     model.to(device)
