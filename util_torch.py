@@ -7,6 +7,7 @@ import torchvision.transforms as transforms
 import numpy as np
 import random
 import matplotlib.pyplot as plt
+from torchsummary import summary
 
 
 # class EEGNET(nn.Module):
@@ -71,17 +72,17 @@ class EEGNET(nn.Module):
 
     def forward(self, x):
         # Block 1
-        x = self.bn1(self.conv1(x)) # [8, ch, 125]
-        x = self.bn2(self.conv2(x)) # [16, 1, 125]
+        x = self.bn1(self.conv1(x))  # [8, ch, 125]
+        x = self.bn2(self.conv2(x))  # [16, 1, 125]
         x = func.avg_pool2d(func.elu(x), (1, 5))
-        x = self.drop1(x) # [16, 1, 25]
+        x = self.drop1(x)  # [16, 1, 25]
         # Block 2
         x = self.conv3(x)
-        x = self.bn3(self.conv4(x)) # [16, 1, 25]
+        x = self.bn3(self.conv4(x))  # [16, 1, 25]
         x = func.avg_pool2d(func.elu(x), (1, 5))
-        x = self.drop2(x) # [16, 1, 5]
-        x = torch.flatten(input=x, start_dim=1) # [80]
-        x = func.softmax(self.fc1(x), dim=-1) # [2]
+        x = self.drop2(x)  # [16, 1, 5]
+        x = torch.flatten(input=x, start_dim=1)  # [80]
+        x = func.softmax(self.fc1(x), dim=-1)  # [2]
         return x
 
 
@@ -91,26 +92,26 @@ class RESNET(nn.Module):
         # in_shape = [C_ch, H_eegch, W_time] [1, 64, 125]
         super(RESNET, self).__init__()
         self.stem_conv11 = nn.Conv2d(in_channels=1, out_channels=4,
-                               kernel_size=(1, 5), stride=(1, 1),
-                               padding='same')
+                                     kernel_size=(1, 5), stride=(1, 1),
+                                     padding='same')
         self.stem_conv12 = nn.Conv2d(in_channels=1, out_channels=4,
-                                    kernel_size=(1, 15), stride=(1, 1),
-                                    padding='same')
+                                     kernel_size=(1, 15), stride=(1, 1),
+                                     padding='same')
         self.stem_conv13 = nn.Conv2d(in_channels=1, out_channels=4,
-                                    kernel_size=(1, 25), stride=(1, 1),
-                                    padding='same')
+                                     kernel_size=(1, 25), stride=(1, 1),
+                                     padding='same')
         self.stem_conv21 = nn.Conv2d(in_channels=12, out_channels=48,
-                                    kernel_size=(1, 3), stride=(1, 2),
-                                    padding='valid', groups=12)
+                                     kernel_size=(1, 3), stride=(1, 2),
+                                     padding='valid', groups=12)
         self.res_module_1 = nn.ModuleList([])
         for i in range(num_res_module_1):
             self.res_module_1.append(nn.ModuleList([
                 nn.Conv2d(in_channels=48, out_channels=8,
-                                    kernel_size=(1, 1), stride=(1, 1),
-                                    padding='same'), # branch 1
+                          kernel_size=(1, 1), stride=(1, 1),
+                          padding='same'),  # branch 1
                 nn.Conv2d(in_channels=48, out_channels=8,
-                                    kernel_size=(1, 1), stride=(1, 1),
-                                    padding='same'), # branch 2
+                          kernel_size=(1, 1), stride=(1, 1),
+                          padding='same'),  # branch 2
                 nn.Conv2d(in_channels=8, out_channels=8,
                           kernel_size=(1, 5), stride=(1, 1),
                           padding='same'),  # branch 2
@@ -122,17 +123,17 @@ class RESNET(nn.Module):
                           padding='same'),  # branch merged
             ]))
         self.reduct_conv1 = nn.Conv2d(in_channels=48, out_channels=96,
-                                    kernel_size=(eeg_ch, 1), stride=(1, 1),
-                                    padding='valid', groups=48)
+                                      kernel_size=(eeg_ch, 1), stride=(1, 1),
+                                      padding='valid', groups=48)
         self.reduct_module_1 = nn.ModuleList([])
         for i in range(num_reduct_module_1):
             self.reduct_module_1.append(nn.ModuleList([
                 nn.Conv2d(in_channels=96, out_channels=32,
-                                    kernel_size=(1, 1), stride=(1, 1),
-                                    padding='same'), # branch 1 (+ave_pool)
+                          kernel_size=(1, 1), stride=(1, 1),
+                          padding='same'),  # branch 1 (+ave_pool)
                 nn.Conv2d(in_channels=96, out_channels=32,
-                                    kernel_size=(1, 1), stride=(1, 1),
-                                    padding='same'), # branch 2
+                          kernel_size=(1, 1), stride=(1, 1),
+                          padding='same'),  # branch 2
                 nn.Conv2d(in_channels=32, out_channels=32,
                           kernel_size=(1, 3), stride=(1, 2),
                           padding='valid'),  # branch 2
@@ -149,6 +150,9 @@ class RESNET(nn.Module):
         self.fc1 = nn.Linear(384, 2)
         self.drop1 = nn.Dropout(p=0.25)
         self.drop2 = nn.Dropout(p=0.5)
+        self.conv_end = nn.Conv2d(in_channels=1, out_channels=4,
+                                     kernel_size=(1, 25), stride=(1, 1),
+                                     padding='same')
 
     def forward(self, x):
         # [1, 64, 125]
@@ -163,24 +167,25 @@ class RESNET(nn.Module):
         # x = torch.cat((self.stem_conv21(x),
         #                func.max_pool2d(func.elu(x), (1, 3), stride=(1, 2))))
         for res_conv_11, res_conv_21, res_conv_22, res_conv_23, res_conv_m in self.res_module_1:
-            x_1 = res_conv_11(x)
-            x_2 = res_conv_21(x)
-            x_2 = res_conv_22(x_2)
-            x_2 = res_conv_23(x_2)
-            x_m = res_conv_m(torch.cat((x_1, x_2), dim=1))
+            x_1 = res_conv_11(x) # 8,64,20
+            x_21 = res_conv_21(x) # 8,64,20
+            x_2 = res_conv_22(x_21) # 8,64,20
+            x_2 = res_conv_23(x_2) # 8,64,20
+            x_m = res_conv_m(torch.cat((x_1, x_2), dim=1))  # 48,64,20
             x = func.relu(x + x_m)
         x = self.reduct_conv1(x)
         x = self.drop1(x)
         # [96, 1, 20]
         for red_conv_11, red_conv_21, red_conv_22, red_conv_31, red_conv_32, red_conv_33 in self.reduct_module_1:
             x_1 = red_conv_11(func.avg_pool2d(x, (1, 3), stride=(1, 2)))
-            x_2 = red_conv_21(x)
-            x_2 = red_conv_22(x_2)
-            x_3 = red_conv_31(x)
-            x_3 = red_conv_32(x_3)
-            x_3 = red_conv_33(x_3)
-            x = torch.cat((x_1, x_2, x_3), dim=1)
+            x_2 = red_conv_21(x)  # 32,1,20
+            x_2 = red_conv_22(x_2)  # 32,1,9
+            x_31 = red_conv_31(x)  # 32,1,20
+            x_32 = red_conv_32(x_31)  # 32,1,9
+            x_33 = red_conv_33(x_32)  # 32,1,9
+            x = torch.cat((x_1, x_2, x_33), dim=1)
         # [96, 1, 9]
+
         x = func.avg_pool2d(x, (1, 3), stride=(1, 2))
         x = torch.flatten(input=x, start_dim=1)
         # x = func.dropout(x, p=0.5)
@@ -196,27 +201,27 @@ class VIT(nn.Module):
         super(VIT, self).__init__()
         self.num_projected_features = 64
         self.qkv_len = 16
-        self.scale = self.qkv_len**(-0.5)
+        self.scale = self.qkv_len ** (-0.5)
         self.h = num_eegch
         self.num_heads = num_heads
         self.num_layers = num_layers
         self.p = 5
-        self.projection = nn.Linear(self.h*25, self.num_projected_features)
+        self.projection = nn.Linear(self.h * 25, self.num_projected_features)
         self.cls_token = nn.Parameter(torch.randn(1, 1, self.num_projected_features))
         self.pe = nn.Parameter(torch.randn(1, self.p + 1, 1))
 
         self.transformer_layers = nn.ModuleList([])
         for i in range(self.num_layers):
             self.transformer_layers.append(nn.ModuleList([
-                nn.Linear(self.num_projected_features, 3 * self.qkv_len * self.num_heads), # make qkv
-                nn.Softmax(dim=-1), # scaled dot product att softmax
-                nn.Linear(self.num_heads * self.qkv_len, self.num_projected_features), # multi head out
+                nn.Linear(self.num_projected_features, 3 * self.qkv_len * self.num_heads),  # make qkv
+                nn.Softmax(dim=-1),  # scaled dot product att softmax
+                nn.Linear(self.num_heads * self.qkv_len, self.num_projected_features),  # multi head out
                 nn.LayerNorm(self.num_projected_features),
                 nn.LayerNorm(self.num_projected_features),
-                nn.Sequential(nn.Linear(self.num_projected_features, 2*self.num_projected_features),
+                nn.Sequential(nn.Linear(self.num_projected_features, 2 * self.num_projected_features),
                               nn.GELU(),
                               nn.Dropout(0.25),
-                              nn.Linear(2*self.num_projected_features, self.num_projected_features),
+                              nn.Linear(2 * self.num_projected_features, self.num_projected_features),
                               nn.Dropout(0.25))
             ]))
         self.MLP_head = nn.Sequential(nn.LayerNorm(self.num_projected_features),
@@ -232,7 +237,7 @@ class VIT(nn.Module):
         # Patching and positional embedding x[b, c=1, h=num_ch, w=125] --> [b, p + 1, f]
         x = torch.transpose(torch.reshape(x, (-1, 1, self.h, self.p, 25)), 3, 4)
         # x[b, c=1, h=num_ch, w=125] --> [b, c=1, h=num_ch, p=5, f=25] --> [b, c=1, h=num_ch, f=25, p=5]
-        x = torch.transpose(torch.reshape(x, (-1, self.h*25, self.p)), 1, 2) # [b, p, h*25]
+        x = torch.transpose(torch.reshape(x, (-1, self.h * 25, self.p)), 1, 2)  # [b, p, h*25]
         # x[b, c=1, h=num_ch, f=25, p=5] --> [b, h*f=num_ch*25, p=5] --> [b, p=5, h*f=num_ch*25]
         x = self.projection(x)
         # x[b, p=5, h*f=num_ch*25] --> [b, p=5, proj_f=64]
@@ -253,14 +258,16 @@ class VIT(nn.Module):
             # v: [b, p+1, qkv_len*num_heads] --> [b, p+1, num_heads, qkv_len] --> [b, num_heads, p+1, qkv_len]
             ##### Scaled Dot-Product Att #####
             # [b, num_heads, p+1, qkv_len] X [b, num_heads, qkv_len, p+1] X [b, num_heads, p+1, qkv_len] -> [b, num_heads, p+1, qkv_len]
-            scaled_dot_produc_att = torch.matmul(softmax(torch.matmul(q, k)*self.scale), v)
+            scaled_dot_produc_att = torch.matmul(softmax(torch.matmul(q, k) * self.scale), v)
             # [b, num_heads, p+1, qkv_len] -> [b, p+1, num_heads*qkv_len] -> [b, p+1, projected_len]
-            multi_head_att = multi_head_out(scaled_dot_produc_att.transpose(1, 2).reshape((b, self.p + 1, self.num_heads*self.qkv_len)))
+            multi_head_att = multi_head_out(
+                scaled_dot_produc_att.transpose(1, 2).reshape((b, self.p + 1, self.num_heads * self.qkv_len)))
             x = multi_head_att + x
             ##### MLP #####
             x = MLP(layer_norm_2(x)) + x
         out = self.MLP_head(x[:, 0, :])
         return out
+
 
 # a = torch.randn(10, 3, 2, 4)
 # print(a[0, 1, 1, :])
@@ -268,7 +275,6 @@ class VIT(nn.Module):
 # print(a[0, 1, 1, :])
 # a = a.reshape(10, 2, 12)
 # print(a[0, 1, :])
-
 
 
 class EegData(torch.utils.data.Dataset):
@@ -327,22 +333,23 @@ def _compute_matrics(preds, true, print_tpr=False):
                 TN = TN + 1
             else:
                 FP = FP + 1
-    tpr = TP/(TP + FN)
-    tnr = TN/(TN + FP)
+    tpr = TP / (TP + FN)
+    tnr = TN / (TN + FP)
     try:
-        precision = TP/(TP + FP)
-        recall = TP/(TP + FN)
+        precision = TP / (TP + FP)
+        recall = TP / (TP + FN)
     except:
         precision = 0
         recall = 0
     try:
-        f1 = 2*(precision*recall)/(precision + recall)
+        f1 = 2 * (precision * recall) / (precision + recall)
     except:
         f1 = 0
-    balanced_acc = (tpr + tnr)/2
+    balanced_acc = (tpr + tnr) / 2
     if print_tpr:
-        print(f'TPR: {tpr:.4f}. TNR: {tnr:.4f}. Precision: {precision:.4f}. Recall: {recall:.4f}. False Positive Rate: {FP/(FP + TN):.4f}.')
-    return f1, balanced_acc, precision, recall, FP/(FP + TN)
+        print(
+            f'TPR: {tpr:.4f}. TNR: {tnr:.4f}. Precision: {precision:.4f}. Recall: {recall:.4f}. False Positive Rate: {FP / (FP + TN):.4f}.')
+    return f1, balanced_acc, precision, recall, FP / (FP + TN)
 
 
 def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_weight):
@@ -365,6 +372,7 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
     log_val_acc = []
     log_test_acc = []
     log_testext_acc = []
+    best_val_loss = 100
     for epoch in range(100):
         running_train_loss = 0
         running_val_loss = 0
@@ -396,7 +404,7 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
         f1, ba_acc, precision, recall, _ = _compute_matrics(train_predicts, train_labels)
         log_train_f1.append(f1)
         log_train_acc.append(ba_acc)
-        log_train_loss.append(running_train_loss/len(train_loader))
+        log_train_loss.append(running_train_loss / len(train_loader))
 
         model.eval()
         with torch.no_grad():
@@ -418,14 +426,14 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
                 f1, ba_acc, precision, recall, _ = _compute_matrics(val_predicts, val_labels)
                 log_val_f1.append(f1)
                 log_val_acc.append(ba_acc)
-                log_val_loss.append(running_val_loss/len(val_loader))
+                log_val_loss.append(running_val_loss / len(val_loader))
             if test_loader is not None:
                 for data_batch in test_loader:
                     x = data_batch['x'].to(device)
                     y = data_batch['y'].to(device)
                     outputs = model(x)
                     test_loss = criterion(outputs, y)
-                    running_test_loss +=test_loss.item()
+                    running_test_loss += test_loss.item()
                     if test_outputs is None:
                         test_outputs = outputs
                         test_labels = y
@@ -434,7 +442,8 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
                         test_labels = torch.cat((test_labels, y), dim=0)
                 _, test_predicts = torch.max(test_outputs, dim=1)
                 _, test_labels = torch.max(test_labels, dim=1)
-                f1_test, ba_acc_test, precision_test, recall_test, _ = _compute_matrics(test_predicts, test_labels)
+                f1_test, ba_acc_test, precision_test, recall_test, fp_over_alln = _compute_matrics(test_predicts,
+                                                                                                   test_labels)
                 log_test_f1.append(f1_test)
                 log_test_acc.append(ba_acc_test)
                 log_test_loss.append(running_test_loss / len(test_loader))
@@ -444,7 +453,7 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
                     y = data_batch['y'].to(device)
                     outputs = model(x)
                     testext_loss = criterion(outputs, y)
-                    running_testext_loss +=testext_loss.item()
+                    running_testext_loss += testext_loss.item()
                     if testext_outputs is None:
                         testext_outputs = outputs
                         testext_labels = y
@@ -453,37 +462,63 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
                         testext_labels = torch.cat((testext_labels, y), dim=0)
                 _, testext_predicts = torch.max(testext_outputs, dim=1)
                 _, testext_labels = torch.max(testext_labels, dim=1)
-                f1_testext, ba_acc_testext, precision_testext, recall_testext, fp_over_allp = _compute_matrics(testext_predicts, testext_labels, print_tpr=True)
+                f1_testext, ba_acc_testext, precision_testext, recall_testext, fp_over_allp = _compute_matrics(
+                    testext_predicts, testext_labels, print_tpr=True)
                 log_testext_f1.append(f1_testext)
                 log_testext_acc.append(ba_acc_testext)
                 log_testext_loss.append(running_testext_loss / len(testext_loader))
         print(f'epoch: {epoch} '
-              f'loss: [{running_train_loss/len(train_loader):.4f} {running_val_loss/len(val_loader):.4f} '
-              f'{running_test_loss/len(test_loader):.4f} {running_testext_loss/len(testext_loader):.4f}] '
+              f'loss: [{running_train_loss / len(train_loader):.4f} {running_val_loss / len(val_loader):.4f} '
+              f'{running_test_loss / len(test_loader):.4f} {running_testext_loss / len(testext_loader):.4f}] '
               f'ba_acc: [{log_train_acc[-1]:.4f} {log_val_acc[-1]:.4f} {log_test_acc[-1]:.4f} {log_testext_acc[-1]:.4f}]'
-              f'f1: [{log_train_f1[-1]:.4f} {log_val_f1[-1]:.4f} {log_test_f1[-1]:.4f} {log_testext_f1[-1]:.4f}]')
+              f'f1: [{log_train_f1[-1]:.4f} {log_val_f1[-1]:.4f} {log_test_f1[-1]:.4f} {log_testext_f1[-1]:.4f}]'
+              f' *fp*: {fp_over_alln:.4f}')
+        # if log_val_acc[-1] > best_val_acc:
+        if log_val_loss[-1] <= best_val_loss:
+            # store results
+            # best_val_acc = log_val_acc[-1]
+            best_val_loss = log_val_loss[-1]
+            out = {
+                'acc': log_test_acc[-1],
+                'prec': precision_test,
+                'recall': recall_test,
+                'f1': log_test_f1[-1],
+                'loss': log_test_loss[-1],
+                'acc_ext': log_testext_acc[-1],
+                'prec_ext': precision_testext,
+                'recall_ext': recall_testext,
+                'f1_ext': log_testext_f1[-1],
+                'loss_ext': log_testext_loss[-1],
+                'fp_over_allp': fp_over_alln
+            }
+            epoch_since_last_best = 0
+        else:
+            epoch_since_last_best = epoch_since_last_best + 1
+
         # Early stopping
-        if len(log_val_loss) > 20:
+        if len(log_val_loss) > 29:
             vals = np.array(log_val_loss[-10:])
             trains = np.array(log_train_loss[-10:])
-            if ((np.amax(vals) - np.amin(vals)) < 0.0005) or ((np.amax(trains) - np.amin(trains)) < 0.0005):
+            if ((np.amax(vals) - np.amin(vals)) < 0.0005) or ((np.amax(trains) - np.amin(trains)) < 0.0002) or (
+                    epoch_since_last_best > 20):
                 print('Triggered early stopping.')
                 break
 
-    print(f'Finished! TEST ACC: {ba_acc_test:.4f} PRECISION: {precision_test:.4f} RECALL: {recall_test:.4f} F1: {f1_test:.4f}')
-    out = {
-        'acc': ba_acc_test,
-        'prec': precision_test,
-        'recall': recall_test,
-        'f1': f1_test,
-        'loss': log_test_loss[-1],
-        'acc_ext': ba_acc_testext,
-        'prec_ext': precision_testext,
-        'recall_ext': recall_testext,
-        'f1_ext': f1_testext,
-        'loss_ext': log_testext_loss[-1],
-        'fp_over_allp': fp_over_allp
-    }
+    print(out)
+    # print(f'Finished! TEST ACC: {ba_acc_test:.4f} PRECISION: {precision_test:.4f} RECALL: {recall_test:.4f} F1: {f1_test:.4f}')
+    # out = {
+    #     'acc': ba_acc_test,
+    #     'prec': precision_test,
+    #     'recall': recall_test,
+    #     'f1': f1_test,
+    #     'loss': log_test_loss[-1],
+    #     'acc_ext': ba_acc_testext,
+    #     'prec_ext': precision_testext,
+    #     'recall_ext': recall_testext,
+    #     'f1_ext': f1_testext,
+    #     'loss_ext': log_testext_loss[-1],
+    #     'fp_over_allp': fp_over_allp
+    # }
     # ax_loss = fig.add_subplot(121, title="Loss")
     # ax_acc = fig.add_subplot(122, title="ACC")
     # ax_loss.set_xlim([0, 200])

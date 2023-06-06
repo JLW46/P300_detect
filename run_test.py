@@ -484,7 +484,7 @@ def _run_cnn_test2(epochs=1):
     return'''
 
 
-def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=False):
+def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
     # CH_SELECT = [9, 27, 45, 59, 43, 47, 50, 56]
     # CH_SELECT = [9, 27, 45]
     CH_SELECT = False
@@ -493,9 +493,9 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=False):
     else:
         num_ch = len(CH_SELECT)
     result_to_save = []
-    save_name = 'F:/HKU_Internship/result/torch_eegnet_0ch.csv'
+    # save_name = 'F:/HKU_Internship/result/torch_eegnet_0ch.csv'
     # save_name = 'F:/HKU_Internship/result/torch_vit_0ch.csv'
-    # save_name = 'results/torch_resnet_3ch.csv'
+    save_name = 'F:/HKU_Internship/result/torch_resnet_2ch.csv'
     if not os.path.isfile(save_name) or overwrite is True:
         with open(save_name, 'w', encoding='UTF8', newline='') as f:
             writer = csv.writer(f)
@@ -556,8 +556,8 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=False):
                 print(np.sum(Y_test_ext, axis=0))
 
 
-                model = util_torch.EEGNET(eeg_ch=num_ch)
-                # model = util_torch.RESNET(eeg_ch=num_ch, num_res_module_1=1, num_reduct_module_1=1)
+                # model = util_torch.EEGNET(eeg_ch=num_ch)
+                model = util_torch.RESNET(eeg_ch=num_ch, num_res_module_1=1, num_reduct_module_1=1)
                 # model = util_torch.VIT(num_eegch=num_ch, num_heads=4, num_layers=1)
 
                 # util_torch._model_summary(model)
@@ -747,7 +747,7 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=False):
 #     _run_cnn_torch()
 # _run_cnn_test2(epochs=6)
 # trial_epochs=[1, 2, 3, 4, 5, 6]
-trial_epochs = [3]
+trial_epochs = [1]
 _run_cnn_torch_strat3(trial_epochs=trial_epochs, from_npz=False, overwrite=False)
 # _build_dataset(trial_epochs=trial_epochs)
 
