@@ -6,8 +6,11 @@ import torchvision
 import torchvision.transforms as transforms
 import numpy as np
 import random
-import matplotlib.pyplot as plt
-from torchsummary import summary
+
+att_weight = torch.tensor([1.8,1.9,2.1,2.1,1.8,1.6,1.4,1.2,1],dtype=torch.float32)
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+att_weight = att_weight.to(device)
+# from torchsummary import summary
 
 
 # class EEGNET(nn.Module):
@@ -91,14 +94,17 @@ class RESNET(nn.Module):
     def __init__(self, eeg_ch, num_res_module_1, num_reduct_module_1):
         # in_shape = [C_ch, H_eegch, W_time] [1, 64, 125]
         super(RESNET, self).__init__()
+
+        # self.att_weight = torch.tensor([1.8,1.9,2.1,2.1,1.8,1.6,1.4,1.2,1])
+
         self.stem_conv11 = nn.Conv2d(in_channels=1, out_channels=4,
                                      kernel_size=(1, 5), stride=(1, 1),
                                      padding='same')
         self.stem_conv12 = nn.Conv2d(in_channels=1, out_channels=4,
-                                     kernel_size=(1, 15), stride=(1, 1),
+                                     kernel_size=(1, 25), stride=(1, 1),
                                      padding='same')
         self.stem_conv13 = nn.Conv2d(in_channels=1, out_channels=4,
-                                     kernel_size=(1, 25), stride=(1, 1),
+                                     kernel_size=(1, 50), stride=(1, 1),
                                      padding='same')
         self.stem_conv21 = nn.Conv2d(in_channels=12, out_channels=48,
                                      kernel_size=(1, 3), stride=(1, 2),
@@ -186,11 +192,14 @@ class RESNET(nn.Module):
             x = torch.cat((x_1, x_2, x_33), dim=1)
         # [96, 1, 9]
 
+        x = torch.mul(x, att_weight)
+
         x = func.avg_pool2d(x, (1, 3), stride=(1, 2))
         x = torch.flatten(input=x, start_dim=1)
         # x = func.dropout(x, p=0.5)
         x = self.drop2(x)
-        out = func.softmax(self.fc1(x), dim=-1)
+        x = self.fc1(x)
+        out = func.softmax(x, dim=-1)
 
         return out
 

@@ -200,7 +200,7 @@ TEST = [
 
 # FOLDER = r'D:/Code/PycharmProjects/P300_detect/data/SEP BCI 125 0-20 no ICA'
 #FOLDER = r'D:\Code\PycharmProjects\P300_detect\data\SEP BCI 125 0-20 with noise'
-FOLDER = r'F:\HKU_Internship\SEP BCI 125 0-20 with noise'
+FOLDER = r'data/SEP BCI 125 0-20 with noise'
 
 '''
 def _run_cnn_test():
@@ -495,7 +495,7 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
     result_to_save = []
     # save_name = 'F:/HKU_Internship/result/torch_eegnet_0ch.csv'
     # save_name = 'F:/HKU_Internship/result/torch_vit_0ch.csv'
-    save_name = 'F:/HKU_Internship/result/torch_resnet_2ch.csv'
+    save_name = 'results/torch_resnet_largekernel_att.csv'
     if not os.path.isfile(save_name) or overwrite is True:
         with open(save_name, 'w', encoding='UTF8', newline='') as f:
             writer = csv.writer(f)
@@ -747,7 +747,7 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
 #     _run_cnn_torch()
 # _run_cnn_test2(epochs=6)
 # trial_epochs=[1, 2, 3, 4, 5, 6]
-trial_epochs = [1]
+trial_epochs = [3]
 _run_cnn_torch_strat3(trial_epochs=trial_epochs, from_npz=False, overwrite=False)
 # _build_dataset(trial_epochs=trial_epochs)
 
