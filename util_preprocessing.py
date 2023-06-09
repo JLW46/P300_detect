@@ -674,6 +674,47 @@ def _read_data_strat3(PATH, norm=True, plot=False, test=False, num_reps=1):
     return out
 
 
+def _build_dataset_plot(FOLDER):
+    files = os.listdir(FOLDER)
+    X = None
+    Events = None
+    for file_name in files:
+        if file_name.endswith('.set'):
+            PATH = os.path.join(FOLDER, file_name)
+            x, events = _read_data_plot(PATH=PATH, norm=True)
+            if X is None:
+                X = x
+                Events = events
+            else:
+                X = np.concatenate([X, x], axis=0)
+                Events = np.concatenate([Events, events], axis=0)
+
+    return X, Events
+
+
+def _read_data_plot(PATH, norm=True):
+    data_pkg = mne.read_epochs_eeglab(PATH)
+    events = _get_event(data_pkg.events, data_pkg.event_id)
+    event_types = np.unique(np.array(events)).tolist()
+    data = data_pkg._data
+    CH = np.shape(data)[1]
+    T = np.shape(data)[2]
+    X = []
+    for i in range(np.shape(data)[0]):
+        x = data[i, :, :]
+        if norm:
+            # remove baseline by [-0.2, 0.0]s
+            x_norm = (x - np.repeat(np.reshape(np.mean(x[:, :25], axis=1), (CH, 1)), T, axis=1)) / (
+                # np.repeat(np.reshape(np.std(x[:, -T_re:], axis=1), (CH, 1)), T, axis=1))
+                # np.repeat(np.reshape(np.std(x, axis=1), (CH, 1)), T, axis=1))
+                0.000001)
+            x = x_norm
+        X.append(np.reshape(x, (1, np.shape(x)[0], np.shape(x)[1])))
+    X = np.squeeze(np.array(X))
+
+    return X, events
+
+
 def _combos(events, label, num_reps):
     inds = list(np.where(events == label)[0])
     n_0 = 2000

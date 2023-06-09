@@ -1049,7 +1049,7 @@ def _draw_boxplot():
         # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_resnet_3ch.csv',
         # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_vit_0ch_0601.csv',
         # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_vit_0ch_0602.csv',
-        r'D:\Code\PycharmProjects\P300_detect\results_new\torch_vit_0ch_0603.csv',
+        r'D:\Code\PycharmProjects\P300_detect\results_new\torch_convvit_0ch.csv',
         # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_vit_0ch.csv'
         ]
     acc = []
@@ -1091,6 +1091,47 @@ def _draw_boxplot():
     plt.show()
 
     return
+
+
+def _draw_signal(events, channels, events_names = None, channel_names=None):
+    FOLDER = r'data\SEP BCI 125 0-20 with noise'
+    # FOLDER = r'data\test folder'
+    X, Events = util_preprocessing._build_dataset_plot(FOLDER)
+    plots = []
+    times = np.linspace(-0.2, 1.0, 150, endpoint=False)
+    for i, event in enumerate(events):
+        inds = list(np.where(Events == event)[0])
+        x = X[inds][:, channels, :]
+        mean = np.mean(x, axis=0)
+        fig = plt.figure(i)
+        ax = fig.add_subplot(111)
+        for j, channel in enumerate(channels):
+            ax.plot(times, mean[j, :])
+        if channel_names is not None:
+            ax.legend(channel_names, loc='upper left', prop=font_manager.FontProperties(style='normal', size=16))
+        else:
+            ax.legend(channels, loc='upper left', prop=font_manager.FontProperties(style='normal', size=16))
+        if events_names is not None:
+            ax.set_title(events_names[i], fontsize=18)
+        ax.set_ylabel('Potential (muV)', fontsize=16)
+        ax.set_xlabel('Time (s)', fontsize=16)
+        ax.tick_params(axis='both', which='major', labelsize=14)
+        ax.set_xlim([-0.2, 1.0])
+        ax.set_ylim([-15, 25])
+        ax.axvline(x=0, color='black')
+        ax.axvline(x=0.2, color='grey', linestyle='--')
+        ax.axvline(x=0.8, color='grey', linestyle='--')
+        ax.yaxis.grid(True)
+        plots.append(ax)
+    plt.show()
+
+
+    return
+
+# CH_SELECT = [9, 27, 25, 29] = [Fz, Cz, C3, C4]
+# _draw_signal(events=[8, 4, 20, 24, 36], channels=[9, 27, 25, 29], events_names=['Target', 'Non-Target', 'Noise_1', 'Noise_2', 'Noise_3'], channel_names=['Fz', 'Cz', 'C3', 'C4'])
+
+
 
 
 _draw_boxplot()

@@ -313,7 +313,7 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
     result_to_save = []
     # save_name = 'results/torch_eegnet_0ch.csv'
     # save_name = 'results/torch_vit_0ch.csv'
-    save_name = 'results/torch_convvit_0ch.csv'
+    save_name = 'results/torch_convvit2_0ch.csv'
     # save_name = 'results/torch_resnet_0ch_tbc.csv'
     if not os.path.isfile(save_name) or overwrite is True:
         with open(save_name, 'w', encoding='UTF8', newline='') as f:
@@ -334,7 +334,7 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
                 TEST = [item]
             # if True:
             #     TEST = ['01_01.set']
-                batch_size_schedule = [8, 64, 128, 256, 256, 256]
+                batch_size_schedule = [8, 64, 128, 256, 256, 256]*2
                 if from_npz:
                     load_name = os.path.join('D:/Data/SEP w noise/', load_name)
                     loaded = np.load(load_name)
@@ -376,7 +376,9 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
                 # model = util_torch.EEGNET(eeg_ch=num_ch)
                 # model = util_torch.RESNET(eeg_ch=num_ch, num_res_module_1=1, num_reduct_module_1=1)
                 # model = util_torch.VIT(num_eegch=num_ch, num_heads=4, num_layers=1)
-                model = util_torch.convVIT(num_eegch=num_ch, num_heads=4, num_layers=1)
+                # model = util_torch.convVIT(num_eegch=num_ch, num_heads=4, num_layers=1)
+                model = util_torch.convVIT2(num_eegch=num_ch, num_heads=4, num_layers=1)
+                learning_rate = 0.00025
                 util_torch._model_summary(model)
 
                 train_set = util_torch.EegData(X_train_, Y_train_)
@@ -399,7 +401,7 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
 
                 fitted_model, out = util_torch._fit(model, train_loader=train_loader, val_loader=val_loader,
                                                     test_loader=test_loader, testext_loader=testext_loader,
-                                                    class_weight=class_weight)
+                                                    class_weight=class_weight, lr=learning_rate)
 
                 row = [TEST[0].split('.')[0], epochs,
                                        out['loss'], out['acc'], out['prec'], out['recall'], out['f1'],
