@@ -7,9 +7,11 @@ import torchvision.transforms as transforms
 import numpy as np
 import random
 
-att_weight = torch.tensor([1.8,1.9,2.1,2.1,1.8,1.6,1.4,1.2,1],dtype=torch.float32)
+att_weight = torch.tensor([1.8, 1.9, 2.1, 2.1, 1.8, 1.6, 1.4, 1.2, 1], dtype=torch.float32)
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 att_weight = att_weight.to(device)
+
+
 # from torchsummary import summary
 
 
@@ -101,10 +103,10 @@ class RESNET(nn.Module):
                                      kernel_size=(1, 5), stride=(1, 1),
                                      padding='same')
         self.stem_conv12 = nn.Conv2d(in_channels=1, out_channels=4,
-                                     kernel_size=(1, 25), stride=(1, 1),
+                                     kernel_size=(1, 15), stride=(1, 1),
                                      padding='same')
         self.stem_conv13 = nn.Conv2d(in_channels=1, out_channels=4,
-                                     kernel_size=(1, 50), stride=(1, 1),
+                                     kernel_size=(1, 25), stride=(1, 1),
                                      padding='same')
         self.stem_conv21 = nn.Conv2d(in_channels=12, out_channels=48,
                                      kernel_size=(1, 3), stride=(1, 2),
@@ -157,8 +159,8 @@ class RESNET(nn.Module):
         self.drop1 = nn.Dropout(p=0.25)
         self.drop2 = nn.Dropout(p=0.5)
         self.conv_end = nn.Conv2d(in_channels=1, out_channels=4,
-                                     kernel_size=(1, 25), stride=(1, 1),
-                                     padding='same')
+                                  kernel_size=(1, 25), stride=(1, 1),
+                                  padding='same')
 
     def forward(self, x):
         # [1, 64, 125]
@@ -173,10 +175,10 @@ class RESNET(nn.Module):
         # x = torch.cat((self.stem_conv21(x),
         #                func.max_pool2d(func.elu(x), (1, 3), stride=(1, 2))))
         for res_conv_11, res_conv_21, res_conv_22, res_conv_23, res_conv_m in self.res_module_1:
-            x_1 = res_conv_11(x) # 8,64,20
-            x_21 = res_conv_21(x) # 8,64,20
-            x_2 = res_conv_22(x_21) # 8,64,20
-            x_2 = res_conv_23(x_2) # 8,64,20
+            x_1 = res_conv_11(x)  # 8,64,20
+            x_21 = res_conv_21(x)  # 8,64,20
+            x_2 = res_conv_22(x_21)  # 8,64,20
+            x_2 = res_conv_23(x_2)  # 8,64,20
             x_m = res_conv_m(torch.cat((x_1, x_2), dim=1))  # 48,64,20
             x = func.relu(x + x_m)
         x = self.reduct_conv1(x)
@@ -197,6 +199,95 @@ class RESNET(nn.Module):
         x = func.avg_pool2d(x, (1, 3), stride=(1, 2))
         x = torch.flatten(input=x, start_dim=1)
         # x = func.dropout(x, p=0.5)
+        x = self.drop2(x)
+        x = self.fc1(x)
+        out = func.softmax(x, dim=-1)
+
+        return out
+
+
+class RESNET_s(nn.Module):
+    # len=125
+    def __init__(self, eeg_ch, num_res_module_1, num_reduct_module_1):
+        # in_shape = [C_ch, H_eegch, W_time] [1, 64, 125]
+        super(RESNET_s, self).__init__()
+
+        # self.att_weight = torch.tensor([1.8,1.9,2.1,2.1,1.8,1.6,1.4,1.2,1])
+        self.att_weight = nn.Parameter(att_weight, requires_grad=True)
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=4,
+                               kernel_size=(64, 1), stride=(1, 1),
+                               padding='same', padding_mode='circular')
+        self.stem_conv11 = nn.Conv2d(in_channels=4, out_channels=8,
+                                     kernel_size=(1, 5), stride=(1, 1),
+                                     padding='same')
+        self.stem_conv12 = nn.Conv2d(in_channels=4, out_channels=8,
+                                     kernel_size=(1, 25), stride=(1, 1),
+                                     padding='same')
+        self.stem_conv13 = nn.Conv2d(in_channels=4, out_channels=8,
+                                     kernel_size=(1, 50), stride=(1, 1),
+                                     padding='same')
+        self.stem_conv21 = nn.Conv2d(in_channels=24, out_channels=48,
+                                     kernel_size=(1, 3), stride=(1, 2),
+                                     padding='valid', groups=12)
+        self.bn1 = nn.BatchNorm2d(48)
+        self.bn2 = nn.BatchNorm2d(96)
+        self.res_module_1 = nn.ModuleList([])
+        for i in range(num_res_module_1):
+            self.res_module_1.append(nn.ModuleList([
+                nn.Conv2d(in_channels=48, out_channels=8,
+                          kernel_size=(1, 1), stride=(1, 1),
+                          padding='same'),  # branch 1
+                nn.Conv2d(in_channels=48, out_channels=8,
+                          kernel_size=(1, 1), stride=(1, 1),
+                          padding='same'),  # branch 2
+                nn.Conv2d(in_channels=8, out_channels=8,
+                          kernel_size=(1, 5), stride=(1, 1),
+                          padding='same'),  # branch 2
+                nn.Conv2d(in_channels=8, out_channels=8,
+                          kernel_size=(1, 5), stride=(1, 1),
+                          padding='same'),  # branch 2
+                # nn.Conv2d(in_channels=8, out_channels=8,
+                #           kernel_size=(eeg_ch, 1), stride=(1, 1),
+                #           padding='same', padding_mode='circular'),  # branch 2
+                nn.Conv2d(in_channels=16, out_channels=48,
+                          kernel_size=(1, 1), stride=(1, 1),
+                          padding='same'),  # branch merged
+                nn.BatchNorm2d(48)
+            ]))
+        self.reduct_conv1 = nn.Conv2d(in_channels=48, out_channels=48,
+                                      kernel_size=(eeg_ch, 1), stride=(1, 1),
+                                      padding='valid', groups=48)
+        self.fc1 = nn.Linear(432, 2)
+        self.drop1 = nn.Dropout(p=0.25)
+        self.drop2 = nn.Dropout(p=0.5)
+        self.conv_end = nn.Conv2d(in_channels=1, out_channels=4,
+                                  kernel_size=(1, 25), stride=(1, 1),
+                                  padding='same')
+
+    def forward(self, x):
+        # [1, 64, 125]
+        x = self.conv1(x)
+        x = torch.cat((self.stem_conv11(x),
+                       self.stem_conv12(x),
+                       self.stem_conv13(x)), dim=1)
+        # [12, 64, 125]
+        x = self.stem_conv21(x)
+        x = self.reduct_conv1(x)  # 48 1 62
+        x = self.bn1(x)
+        # [48, 1, 62]
+        x = func.max_pool2d(func.relu(x), (1, 3))
+        # [48, 1, 20]
+        for res_conv_11, res_conv_21, res_conv_22, res_conv_23, res_conv_m, bn in self.res_module_1:
+            x_1 = res_conv_11(x)  # 8,1,20
+            x_21 = res_conv_21(x)  # 8,1,20
+            x_2 = res_conv_22(x_21)  # 8,1,20
+            x_2 = res_conv_23(x_2)  # 8,1,20
+            x_m = res_conv_m(torch.cat((x_1, x_2), dim=1))  # 48,1,20
+            x = func.relu(x + x_m)
+
+        x = func.avg_pool2d(x, (1, 3), stride=(1, 2))
+        x = torch.flatten(input=x, start_dim=1)
+
         x = self.drop2(x)
         x = self.fc1(x)
         out = func.softmax(x, dim=-1)
