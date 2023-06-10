@@ -45,13 +45,27 @@ import matplotlib.pyplot as plt
 #         return x
 
 
+class weightConstraint(object):
+    def __init__(self, min, max):
+        self.min = min
+        self.max = max
+        pass
+
+    def __call__(self, module):
+        if hasattr(module, 'weight'):
+            # print("Entered")
+            w = module.weight.data
+            w = w.clamp(self.min, self.max)
+            module.weight.data = w
+
+
 class EEGNET(nn.Module):
     # len=125
     def __init__(self, eeg_ch):
         # in_shape = [C_ch, H_eegch, W_time] [1, 64, 125]
         super(EEGNET, self).__init__()
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=8,
-                               kernel_size=(1, 37), stride=(1, 1),
+                               kernel_size=(1, 63), stride=(1, 1),
                                padding='same')
         self.bn1 = nn.BatchNorm2d(num_features=8)
         self.conv2 = nn.Conv2d(in_channels=8, out_channels=16,
@@ -78,6 +92,105 @@ class EEGNET(nn.Module):
         x = func.dropout(input=(func.avg_pool2d(func.elu(x), (1, 5))), p=0.5) # [16, 1, 5]
         x = torch.flatten(input=x, start_dim=1) # [80]
         x = func.softmax(self.fc1(x), dim=-1) # [2]
+        return x
+
+
+class EEGNET_VIT(nn.Module):
+    # len=125
+    def __init__(self, num_eegch, num_heads, num_layers):
+        # in_shape = [C_ch, H_eegch, W_time] [1, 64, 125]
+        super(EEGNET_VIT, self).__init__()
+        self.num_heads = num_heads
+        self.num_layers = num_layers
+        self.num_projected_features = 32
+        self.qkv_len = 16
+        self.scale = self.qkv_len ** (-0.5)
+        self.h = num_eegch
+        self.p = 5
+        self.conv_temporal = nn.Conv2d(in_channels=1, out_channels=8,
+                               kernel_size=(1, 63), stride=(1, 1),
+                               padding='same')
+        self.bn1 = nn.BatchNorm2d(num_features=8)
+        self.conv_spatial = nn.Conv2d(in_channels=8, out_channels=16,
+                               kernel_size=(num_eegch, 1), stride=(1, 1),
+                               padding='valid', groups=8)
+        self.bn2 = nn.BatchNorm2d(num_features=16)
+
+        self.conv_projection_1 = nn.Conv2d(in_channels=16, out_channels=32,
+                               kernel_size=(1, 5), stride=(1, 5),
+                               padding='valid', groups=16)
+        self.conv_projection_2 = nn.Conv2d(in_channels=32, out_channels=self.num_projected_features,
+                                           kernel_size=(1, 1), stride=(1, 1),
+                                           padding='same')
+
+        self.cls_token = nn.Parameter(torch.randn(1, 1, self.num_projected_features))
+        self.pe = nn.Parameter(torch.randn(1, self.p + 1, self.num_projected_features))
+        self.transformer_layers = nn.ModuleList([])
+        for i in range(self.num_layers):
+            self.transformer_layers.append(nn.ModuleList([
+                nn.Linear(self.num_projected_features, 3 * self.qkv_len * self.num_heads),  # make qkv
+                nn.Softmax(dim=-1),  # scaled dot product att softmax
+                nn.Linear(self.num_heads * self.qkv_len, self.num_projected_features),  # multi head out
+                nn.LayerNorm(self.num_projected_features),
+                nn.LayerNorm(self.num_projected_features),
+                nn.Sequential(nn.Linear(self.num_projected_features, 2 * self.num_projected_features),
+                              nn.GELU(),
+                              nn.Dropout(0.25),
+                              nn.Linear(2 * self.num_projected_features, self.num_projected_features),
+                              nn.Dropout(0.25))
+            ]))
+        self.MLP_head = nn.Sequential(nn.LayerNorm(self.num_projected_features),
+                                      nn.Dropout(0.5),
+                                      nn.Linear(self.num_projected_features, 2),
+                                      nn.Softmax(dim=-1))
+
+    def forward(self, x):
+        b = x.size()[0]
+        # Block 1
+        x = self.bn1(self.conv_temporal(x)) # [8, ch, 125]
+        x = self.bn2(self.conv_spatial(x)) # [16, 1, 125]
+        x = func.dropout(input=(func.avg_pool2d(func.elu(x), (1, 5))), p=0.2) # [16, 1, 25]
+        # Block 2
+
+
+        x = self.conv_projection_1(x) # [64, 1, 5]
+        x = self.conv_projection_2(x) # [128, 1, 5]
+
+        # x[proj_f, 1, 5]
+        # Patching and positional embedding
+        x = torch.transpose(torch.reshape(x, (-1, self.num_projected_features, self.p)), 1, 2)
+        # x[b, proj_f, 1, 5] --> [b, proj_f, 5] --> [b, 5, proj_f]
+        cls_token = self.cls_token.repeat(b, 1, 1)
+        x = torch.cat((cls_token, x), dim=1)
+        # x[b, p=5, proj_f] cat token[b, 1, proj_f] --> [b, 5+1, proj_f]
+        x = x + self.pe
+        # x[b, 5+1, features]
+        # transformer
+        for make_qkv, softmax, multi_head_out, layer_norm_1, layer_norm_2, MLP in self.transformer_layers:
+            ##### QKV #####
+            qkv = make_qkv(layer_norm_1(x)).chunk(3, dim=-1)
+            # x[b, p+1, proj_f] --> [b, p+1, qkv_len*num_heads]*3
+            q = qkv[0].reshape((b, self.p + 1, self.num_heads, self.qkv_len)).transpose(1, 2)
+            # q: [b, p+1, qkv_len*num_heads] --> [b, p+1, num_heads, qkv_len] --> [b, num_heads, p+1, qkv_len]
+            k = qkv[1].reshape((b, self.p + 1, self.num_heads, self.qkv_len)).transpose(1, 2).transpose(2, 3)
+            # k: [b, p+1, qkv_len*num_heads] --> [b, p+1, num_heads, qkv_len] --> [b, num_heads, p+1, qkv_len] -> [b, num_heads, qkv_len, p+1]
+            v = qkv[2].reshape((b, self.p + 1, self.num_heads, self.qkv_len)).transpose(1, 2)
+            # v: [b, p+1, qkv_len*num_heads] --> [b, p+1, num_heads, qkv_len] --> [b, num_heads, p+1, qkv_len]
+            ##### Scaled Dot-Product Att #####
+            # [b, num_heads, p+1, qkv_len] X [b, num_heads, qkv_len, p+1] X [b, num_heads, p+1, qkv_len] -> [b, num_heads, p+1, qkv_len]
+            scaled_dot_produc_att = torch.matmul(softmax(torch.matmul(q, k) * self.scale), v)
+            # [b, num_heads, p+1, qkv_len] -> [b, p+1, num_heads*qkv_len] -> [b, p+1, projected_len]
+            multi_head_att = multi_head_out(
+                scaled_dot_produc_att.transpose(1, 2).reshape((b, self.p + 1, self.num_heads * self.qkv_len)))
+            x = multi_head_att + x
+            ##### MLP #####
+            x = MLP(layer_norm_2(x)) + x
+        x = self.MLP_head(x[:, 0, :])
+        # x = torch.reshape(x, (-1, 6 * 48))
+        # x = self.MLP_head(x)
+
+
+
         return x
 
 
@@ -580,10 +693,10 @@ def _compute_matrics(preds, true, print_tpr=False):
 
 
 def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_weight, lr):
-    # optimizer = optim.SGD(model.parameters(), lr=0.02, momentum=0.9, weight_decay=0.00)
+    optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9, dampening=0.1)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print(device)
-    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=0.00)
+    # optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=0.00)
     criterion = nn.CrossEntropyLoss(weight=class_weight, label_smoothing=0.0)
     criterion.to(device)
     model.to(device)

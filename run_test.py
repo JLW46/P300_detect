@@ -313,7 +313,7 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
     result_to_save = []
     # save_name = 'results/torch_eegnet_0ch.csv'
     # save_name = 'results/torch_vit_0ch.csv'
-    save_name = 'results/torch_convvit2_0ch.csv'
+    save_name = 'results/torch_eegnetvit_0ch.csv'
     # save_name = 'results/torch_resnet_0ch_tbc.csv'
     if not os.path.isfile(save_name) or overwrite is True:
         with open(save_name, 'w', encoding='UTF8', newline='') as f:
@@ -377,8 +377,12 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
                 # model = util_torch.RESNET(eeg_ch=num_ch, num_res_module_1=1, num_reduct_module_1=1)
                 # model = util_torch.VIT(num_eegch=num_ch, num_heads=4, num_layers=1)
                 # model = util_torch.convVIT(num_eegch=num_ch, num_heads=4, num_layers=1)
-                model = util_torch.convVIT2(num_eegch=num_ch, num_heads=4, num_layers=1)
-                learning_rate = 0.00025
+                model = util_torch.EEGNET_VIT(num_eegch=num_ch, num_heads=4, num_layers=1)
+                constraints_1 = util_torch.weightConstraint(-1, 1)
+                constraints_2 = util_torch.weightConstraint(-0.25, 0.25)
+                model._modules['conv_spatial'].apply(constraints_1)
+                model._modules['fc1'].apply(constraints_2)
+                learning_rate = 0.02
                 util_torch._model_summary(model)
 
                 train_set = util_torch.EegData(X_train_, Y_train_)
