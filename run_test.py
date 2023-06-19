@@ -147,12 +147,12 @@ TRAIN = [
 
 TEST = [
     # '01_01.set',
-#     '01_02.set',
-#     '01_03.set',
-#     '01_04.set',
-#     '01_05.set',
-#     '01_06.set',
-#     '02_01.set',
+    #     '01_02.set',
+    #     '01_03.set',
+    #     '01_04.set',
+    #     '01_05.set',
+    #     '01_06.set',
+    #     '02_01.set',
     # '02_02.set',
     # '02_03.set',
     # '02_04.set',
@@ -196,11 +196,9 @@ TEST = [
     # '09_06.set',
 ]
 
-
-
 # FOLDER = r'D:/Code/PycharmProjects/P300_detect/data/SEP BCI 125 0-20 no ICA'
-#FOLDER = r'D:\Code\PycharmProjects\P300_detect\data\SEP BCI 125 0-20 with noise'
-FOLDER = r'data/SEP BCI 125 0-20 with noise'
+# FOLDER = r'D:\Code\PycharmProjects\P300_detect\data\SEP BCI 125 0-20 with noise'
+FOLDER = r'F:\HKU_Internship\SEP BCI 125 0-20 with noise'
 
 '''
 def _run_cnn_test():
@@ -495,7 +493,7 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
     result_to_save = []
     # save_name = 'F:/HKU_Internship/result/torch_eegnet_0ch.csv'
     # save_name = 'F:/HKU_Internship/result/torch_vit_0ch.csv'
-    save_name = 'results/torch_resnet_largekernel_att.csv'
+    save_name = 'results/torch_EEGNET_half.csv'
     if not os.path.isfile(save_name) or overwrite is True:
         with open(save_name, 'w', encoding='UTF8', newline='') as f:
             writer = csv.writer(f)
@@ -506,7 +504,7 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
 
     for epochs in trial_epochs:
         for sbj in ['01', '02', '03', '04', '06', '07', '08', '09']:
-        # for sbj in ['02']:
+            # for sbj in ['02']:
             # create TRAIN
             TRAIN = []
             for set in ['_01', '_02', '_03', '_04', '_05', '_06']:
@@ -514,14 +512,17 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
             # run
             for item in TRAIN:
                 TEST = [item]
-            # if True:
-            #     TEST = ['01_01.set']
-                batch_size_schedule = [24, 32, 40, 48, 56, 64]
+                # if True:
+                #     TEST = ['01_01.set']
+                batch_size_scale = 64
+                batch_size_schedule = [1 * batch_size_scale, 8 * batch_size_scale, 16 * batch_size_scale,
+                                       32 * batch_size_scale, 32 * batch_size_scale, 32 * batch_size_scale]
+                # batch_size_schedule = [24, 32, 40, 48, 56, 64]
                 # batch_size_schedule = [24, 32, 32, 8, 32, 32]
                 if from_npz:
                     load_name = item.split('.')[0] + '_epoch11_' + str(epochs) + '.npz'
                     print(load_name)
-                    load_name = os.path.join('D:/Data/SEP w noise/', load_name)
+                    load_name = os.path.join('F:/HKU_Internship/SEP BCI 125 0-20 with noise', load_name)
                     loaded = np.load(load_name)
                     X_train_ = loaded['x_train']
                     Y_train_ = loaded['y_train']
@@ -532,9 +533,10 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
                     X_test_ext = loaded['x_test_ext']
                     Y_test_ext = loaded['y_test_ext']
                 else:
-                    X_train, Y_train, X_test, Y_test, X_test_ext, Y_test_ext = util_preprocessing._build_dataset_strat3(FOLDER, TRAIN, TEST,
-                                                                                                ch_select=CH_SELECT,
-                                                                                                num_reps=epochs)
+                    X_train, Y_train, X_test, Y_test, X_test_ext, Y_test_ext = util_preprocessing._build_dataset_strat3(
+                        FOLDER, TRAIN, TEST,
+                        ch_select=CH_SELECT,
+                        num_reps=epochs)
                     X_train_, Y_train_, X_val_, Y_val_ = util_torch._manual_val_split(X_train, Y_train, ratio=0.85)
                 if CH_SELECT is not False:
                     X_train_ = X_train_[:, :, CH_SELECT, :]
@@ -555,11 +557,16 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
                 print(np.sum(Y_test, axis=0))
                 print(np.sum(Y_test_ext, axis=0))
 
-
-                # model = util_torch.EEGNET(eeg_ch=num_ch)
-                model = util_torch.RESNET(eeg_ch=num_ch, num_res_module_1=1, num_reduct_module_1=1)
+                model = util_torch.EEGNET_Res(eeg_ch=num_ch)
+                # model = util_torch.RESNET(eeg_ch=num_ch, num_res_module_1=1, num_reduct_module_1=1)
                 # model = util_torch.VIT(num_eegch=num_ch, num_heads=4, num_layers=1)
-
+                # model = util_torch.EEGNET_VIT(num_eegch=num_ch, num_heads=4, num_layers=1)
+                constraints_1 = util_torch.weightConstraint(-1, 1)
+                constraints_2 = util_torch.weightConstraint(-0.25, 0.25)
+                model._modules['conv_spatial'].apply(constraints_1)
+                model._modules['fc1'].apply(constraints_2)
+                # learning_rate = 0.02
+                # util_torch._model_summary(model)
                 # util_torch._model_summary(model)
 
                 # data_set_train = util_torch.EegData(X_train, Y_train)
@@ -569,19 +576,21 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
                 val_set = util_torch.EegData(X_val_, Y_val_)
                 test_set = util_torch.EegData(X_test, Y_test)
                 test_set_ext = util_torch.EegData(np.concatenate([X_test, X_test_ext], axis=0),
-                                                       np.concatenate([Y_test, Y_test_ext], axis=0))
+                                                  np.concatenate([Y_test, Y_test_ext], axis=0))
                 sum_1 = np.sum(Y_train_, axis=0)
-                class_weight = np.array([sum_1[1], sum_1[0]])/(sum_1[1] + sum_1[0])
+                class_weight = np.array([sum_1[1], sum_1[0]]) / (sum_1[1] + sum_1[0])
                 print(f'Class Weight: {class_weight}')
                 class_weight = torch.from_numpy(class_weight).float()
 
                 data_lens = [len(train_set), len(val_set), len(test_set), len(test_set_ext)]
                 print(data_lens)
                 batch_size = batch_size_schedule[epochs - 1]
-                train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=0)
+                train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True,
+                                                           num_workers=0)
                 val_loader = torch.utils.data.DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=0)
                 test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=0)
-                testext_loader = torch.utils.data.DataLoader(test_set_ext, batch_size=batch_size, shuffle=False, num_workers=0)
+                testext_loader = torch.utils.data.DataLoader(test_set_ext, batch_size=batch_size, shuffle=False,
+                                                             num_workers=0)
 
                 fitted_model, out = util_torch._fit(model, train_loader=train_loader, val_loader=val_loader,
                                                     test_loader=test_loader, testext_loader=testext_loader,
@@ -589,11 +598,12 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
 
                 result_to_save.append([TEST[0].split('.')[0], epochs,
                                        out['loss'], out['acc'], out['prec'], out['recall'], out['f1'],
-                                       out['loss_ext'], out['acc_ext'], out['prec_ext'], out['recall_ext'], out['f1_ext'], out['fp_over_allp']])
-                row = [TEST[0].split('.')[0], epochs,
-                                       out['loss'], out['acc'], out['prec'], out['recall'], out['f1'],
                                        out['loss_ext'], out['acc_ext'], out['prec_ext'], out['recall_ext'],
-                                       out['f1_ext'], out['fp_over_allp']]
+                                       out['f1_ext'], out['fp_over_allp']])
+                row = [TEST[0].split('.')[0], epochs,
+                       out['loss'], out['acc'], out['prec'], out['recall'], out['f1'],
+                       out['loss_ext'], out['acc_ext'], out['prec_ext'], out['recall_ext'],
+                       out['f1_ext'], out['fp_over_allp']]
                 with open(save_name, 'a', encoding='UTF8', newline='') as f:
                     writer = csv.writer(f)
                     writer.writerow(row)
@@ -747,7 +757,7 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
 #     _run_cnn_torch()
 # _run_cnn_test2(epochs=6)
 # trial_epochs=[1, 2, 3, 4, 5, 6]
-trial_epochs = [3]
+trial_epochs = [1, 2, 3]
 _run_cnn_torch_strat3(trial_epochs=trial_epochs, from_npz=False, overwrite=False)
 # _build_dataset(trial_epochs=trial_epochs)
 

@@ -6,49 +6,22 @@ import torchvision
 import torchvision.transforms as transforms
 import numpy as np
 import random
-
-att_weight = torch.tensor([1.8, 1.9, 2.1, 2.1, 1.8, 1.6, 1.4, 1.2, 1], dtype=torch.float32)
-device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-att_weight = att_weight.to(device)
+import math
+from math import cos, pi
 
 
-# from torchsummary import summary
+class weightConstraint(object):
+    def __init__(self, min, max):
+        self.min = min
+        self.max = max
+        pass
 
-
-# class EEGNET(nn.Module):
-#       # len=75
-#     def __init__(self, eeg_ch):
-#         # in_shape = [C_ch, H_eegch, W_time] [1, 64, 75]
-#         super(EEGNET, self).__init__()
-#         self.conv1 = nn.Conv2d(in_channels=1, out_channels=8,
-#                                kernel_size=(1, 37), stride=(1, 1),
-#                                padding='same')
-#         self.bn1 = nn.BatchNorm2d(num_features=8)
-#         self.conv2 = nn.Conv2d(in_channels=8, out_channels=16,
-#                                kernel_size=(eeg_ch, 1), stride=(1, 1),
-#                                padding='valid', groups=8)
-#         self.bn2 = nn.BatchNorm2d(num_features=16)
-#         self.conv3 = nn.Conv2d(in_channels=16, out_channels=16,
-#                                kernel_size=(1, 15), stride=(1, 1),
-#                                padding='same', groups=16)
-#         self.conv4 = nn.Conv2d(in_channels=16, out_channels=16,
-#                                kernel_size=(1, 1), stride=(1, 1),
-#                                padding='valid')
-#         self.bn3 = nn.BatchNorm2d(num_features=16)
-#         self.fc1 = nn.Linear(64, 2)
-#
-#     def forward(self, x):
-#         # Block 1
-#         x = self.bn1(self.conv1(x)) # [8, ch, 75]
-#         x = self.bn2(self.conv2(x)) # [16, 1. 75]
-#         x = func.dropout(input=(func.avg_pool2d(func.elu(x), (1, 4))), p=0.25) # [16, 1, 18]
-#         # Block 2
-#         x = self.conv3(x)
-#         x = self.bn3(self.conv4(x)) # [16, 1, 18]
-#         x = func.dropout(input=(func.avg_pool2d(func.elu(x), (1, 4))), p=0.5) # [16, 1, 4]
-#         x = torch.flatten(input=x, start_dim=1) # [64]
-#         x = func.softmax(self.fc1(x), dim=-1) # [2]
-#         return x
+    def __call__(self, module):
+        if hasattr(module, 'weight'):
+            # print("Entered")
+            w = module.weight.data
+            w = w.clamp(self.min, self.max)
+            module.weight.data = w
 
 
 class EEGNET(nn.Module):
@@ -57,7 +30,7 @@ class EEGNET(nn.Module):
         # in_shape = [C_ch, H_eegch, W_time] [1, 64, 125]
         super(EEGNET, self).__init__()
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=8,
-                               kernel_size=(1, 37), stride=(1, 1),
+                               kernel_size=(1, 63), stride=(1, 1),
                                padding='same')
         self.bn1 = nn.BatchNorm2d(num_features=8)
         self.conv2 = nn.Conv2d(in_channels=8, out_channels=16,
@@ -65,28 +38,213 @@ class EEGNET(nn.Module):
                                padding='valid', groups=8)
         self.bn2 = nn.BatchNorm2d(num_features=16)
         self.conv3 = nn.Conv2d(in_channels=16, out_channels=16,
-                               kernel_size=(1, 15), stride=(1, 1),
+                               kernel_size=(1, 13), stride=(1, 1),
                                padding='same', groups=16)
         self.conv4 = nn.Conv2d(in_channels=16, out_channels=16,
                                kernel_size=(1, 1), stride=(1, 1),
                                padding='valid')
         self.bn3 = nn.BatchNorm2d(num_features=16)
         self.fc1 = nn.Linear(80, 2)
-        self.drop1 = nn.Dropout(0.25)
-        self.drop2 = nn.Dropout(0.5)
 
     def forward(self, x):
         # Block 1
         x = self.bn1(self.conv1(x))  # [8, ch, 125]
         x = self.bn2(self.conv2(x))  # [16, 1, 125]
-        x = func.avg_pool2d(func.elu(x), (1, 5))
-        x = self.drop1(x)  # [16, 1, 25]
+        x = func.dropout(input=(func.avg_pool2d(func.elu(x), (1, 5))), p=0.25)  # [16, 1, 25]
         # Block 2
         x = self.conv3(x)
         x = self.bn3(self.conv4(x))  # [16, 1, 25]
-        x = func.avg_pool2d(func.elu(x), (1, 5))
-        x = self.drop2(x)  # [16, 1, 5]
+        x = func.dropout(input=(func.avg_pool2d(func.elu(x), (1, 5))), p=0.5)  # [16, 1, 5]
         x = torch.flatten(input=x, start_dim=1)  # [80]
+        x = func.softmax(self.fc1(x), dim=-1)  # [2]
+        return x
+
+
+class EEGNET_Res_B(nn.Module):
+    # len=125
+    def __init__(self, eeg_ch):
+        # in_shape = [C_ch, H_eegch, W_time] [1, 64, 125]
+        super(EEGNET_Res_B, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=8,
+                               kernel_size=(1, 63), stride=(1, 1),
+                               padding='same')
+        self.bn1 = nn.BatchNorm2d(num_features=8)
+        self.conv_spatial = nn.Conv2d(in_channels=8, out_channels=16,
+                                      kernel_size=(eeg_ch, 1), stride=(1, 1),
+                                      padding='valid')
+        self.bn2 = nn.BatchNorm2d(num_features=16)
+
+        self.conv_res_1 = nn.Conv2d(in_channels=16, out_channels=8,
+                                    kernel_size=(1, 1), stride=(1, 1),
+                                    padding='same')
+        self.conv_res_21 = nn.Conv2d(in_channels=16, out_channels=8,
+                                     kernel_size=(1, 1), stride=(1, 1),
+                                     padding='same')
+        self.conv_res_22 = nn.Conv2d(in_channels=8, out_channels=8,
+                                     kernel_size=(1, 13), stride=(1, 1),
+                                     padding='same')
+
+        self.bn_res = nn.BatchNorm2d(num_features=16)
+
+        self.fc1 = nn.Linear(80, 2)
+        self.dropout1 = nn.Dropout(p=0.25)
+        self.dropout2 = nn.Dropout(p=0.5)
+
+    def forward(self, x):
+        # Block 1
+        x = self.bn1(self.conv1(x))  # [8, ch, 125]
+        x = self.bn2(self.conv_spatial(x))  # [16, 1, 125]
+        x = self.dropout1(func.avg_pool2d(func.elu(x), (1, 5)))  # [16, 1, 25]
+        # Block 2
+
+        # x_1 = func.relu(self.bn_21(self.conv_21(x)))
+        x_1 = self.conv_res_1(x)
+        x_2 = self.conv_res_21(x)
+        x_2 = self.conv_res_22(x_2)
+        x_res = torch.cat((x_1, x_2), 1)
+        x = func.relu(self.bn_res(x + x_res))
+
+        x = self.dropout2(func.avg_pool2d(x, (1, 5)))  # [16, 1, 5]
+        x = torch.flatten(input=x, start_dim=1)
+
+        x = func.softmax(self.fc1(x), dim=-1)  # [2]
+        return x
+
+
+class EEGNET_Res_C(nn.Module):
+    # len=125 , on RES0, replace final avg_pool with conv reduct and add 1 more res
+    def __init__(self, eeg_ch, num_res_module_1=1, num_res_module_2=1):
+        # in_shape = [C_ch, H_eegch, W_time] [1, 64, 125]
+        super(EEGNET_Res_C, self).__init__()
+        self.conv_temporal = nn.Conv2d(in_channels=1, out_channels=8,
+                                       kernel_size=(1, 63), stride=(1, 1),
+                                       padding='same')
+        self.bn1 = nn.BatchNorm2d(num_features=8)
+        spatial_out = 16
+        self.conv_spatial = nn.Conv2d(in_channels=8, out_channels=spatial_out,
+                                      kernel_size=(eeg_ch, 1), stride=(1, 1),
+                                      padding='valid', groups=8)
+        self.bn2 = nn.BatchNorm2d(num_features=spatial_out)
+        self.dropout1 = nn.Dropout(p=0.25)
+        self.res_module_1 = nn.ModuleList([])
+        num_res1_branch = 2
+        for i in range(num_res_module_1):
+            self.res_module_1.append(nn.ModuleList([
+                nn.Conv2d(in_channels=spatial_out, out_channels=spatial_out // num_res1_branch,
+                          kernel_size=(1, 1), stride=(1, 1),
+                          padding='same'),  # branch 1
+                nn.Conv2d(in_channels=spatial_out, out_channels=spatial_out // num_res1_branch,
+                          kernel_size=(1, 1), stride=(1, 1),
+                          padding='same'),  # branch 2
+                nn.Conv2d(in_channels=spatial_out // num_res1_branch, out_channels=spatial_out // num_res1_branch,
+                          kernel_size=(1, 13), stride=(1, 1),
+                          padding='same'),  # branch 2
+                nn.BatchNorm2d(num_features=spatial_out)
+            ]))
+        reduct2_out = 2 * spatial_out
+        self.conv_reduction21 = nn.Conv2d(in_channels=spatial_out, out_channels=reduct2_out,
+                                          kernel_size=(1, 3), stride=(1, 2),
+                                          padding='valid', groups=spatial_out)
+        self.conv_reduction22 = nn.Conv2d(in_channels=reduct2_out, out_channels=reduct2_out,
+                                          kernel_size=(1, 1), stride=(1, 1),
+                                          padding='same')
+        self.bn_red2 = nn.BatchNorm2d(num_features=reduct2_out)
+        self.res_module_2 = nn.ModuleList([])
+        num_res2_branch = 2
+        for i in range(num_res_module_2):
+            self.res_module_2.append(nn.ModuleList([
+                nn.Conv2d(in_channels=reduct2_out, out_channels=reduct2_out // num_res2_branch,
+                          kernel_size=(1, 1), stride=(1, 1),
+                          padding='same'),  # branch 1
+                nn.Conv2d(in_channels=reduct2_out, out_channels=reduct2_out // num_res2_branch,
+                          kernel_size=(1, 1), stride=(1, 1),
+                          padding='same'),  # branch 2
+                nn.Conv2d(in_channels=reduct2_out // num_res2_branch, out_channels=reduct2_out // num_res2_branch,
+                          kernel_size=(1, 3), stride=(1, 1),
+                          padding='same'),  # branch 2
+                nn.BatchNorm2d(num_features=reduct2_out)
+            ]))
+        self.dropout2 = nn.Dropout(p=0.5)
+        self.fc1 = nn.Linear(2 * 96, 2)
+
+    def forward(self, x):
+        b = x.size()[0]
+        # Block 1
+        x = self.bn1(self.conv_temporal(x))  # [8, ch, 125]
+        x = self.bn2(self.conv_spatial(x))  # [16, 1, 125]
+        x = func.avg_pool2d(func.elu(x), (1, 5))  # [16, 1, 25]
+        x = self.dropout1(x)
+        # Block res1
+        for conv_res1_1, conv_res1_21, conv_res1_22, bn in self.res_module_1:
+            x_re1_1 = conv_res1_1(x)
+            x_re1_2 = conv_res1_22(conv_res1_21(x))
+            x = bn(x + torch.cat((x_re1_1, x_re1_2), dim=1))
+            x = func.relu(x)  # [16, 1, 25]
+        # Reduction
+        x = self.conv_reduction22(self.conv_reduction21(x))  # [16, 1, 12]
+        x = func.relu(self.bn_red2(x))
+        # Block res2
+        for conv_res1_1, conv_res1_21, conv_res1_22, bn in self.res_module_2:
+            x_re1_1 = conv_res1_1(x)
+            x_re1_2 = conv_res1_22(conv_res1_21(x))
+            x = bn(x + torch.cat((x_re1_1, x_re1_2), dim=1))
+            x = func.relu(x)
+        # Out
+        x = func.avg_pool2d(x, (1, 2))  # [32, 1, 6]
+        x = torch.flatten(input=x, start_dim=1)
+        x = self.dropout2(x)
+        out = func.softmax(self.fc1(x), dim=-1)
+        return out
+
+
+class EEGNET_Res_D(nn.Module):
+    # len=125
+    def __init__(self, eeg_ch):
+        # in_shape = [C_ch, H_eegch, W_time] [1, 64, 125]
+        super(EEGNET_Res_D, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=8,
+                               kernel_size=(1, 63), stride=(1, 1),
+                               padding='same')
+        self.bn1 = nn.BatchNorm2d(num_features=8)
+        self.conv_spatial = nn.Conv2d(in_channels=8, out_channels=16,
+                                      kernel_size=(eeg_ch, 1), stride=(1, 1),
+                                      padding='valid')
+        self.bn2 = nn.BatchNorm2d(num_features=16)
+
+        self.conv_res_1 = nn.Conv2d(in_channels=16, out_channels=32,
+                                    kernel_size=(1, 1), stride=(1, 1),
+                                    padding='same')
+        self.conv_res_21 = nn.Conv2d(in_channels=32, out_channels=32,
+                                     kernel_size=(1, 5), stride=(1, 1),
+                                     padding='same')
+        self.conv_res_22 = nn.Conv2d(in_channels=32, out_channels=32,
+                                     kernel_size=(1, 13), stride=(1, 1),
+                                     padding='same')
+        self.conv_res_3 = nn.Conv2d(in_channels=64, out_channels=16,
+                                    kernel_size=(1, 1), stride=(1, 1),
+                                    padding='same')
+        self.bn_res = nn.BatchNorm2d(num_features=16)
+
+        self.fc1 = nn.Linear(128, 2)
+        self.dropout1 = nn.Dropout(p=0.25)
+        self.dropout2 = nn.Dropout(p=0.5)
+
+    def forward(self, x):
+        # Block 1
+        x = self.bn1(self.conv1(x))  # [8, ch, 125]
+        x = self.bn2(self.conv_spatial(x))  # [16, 1, 125]
+        x = self.dropout1(func.avg_pool2d(func.elu(x), (1, 5)))  # [16, 1, 25]
+        # Block 2
+
+        x_1 = self.conv_res_1(x)
+        x_21 = self.conv_res_21(x_1)  # branch 1
+        x_22 = self.conv_res_22(x_1)  # branch 2
+        x_2 = torch.cat((x_21, x_22), dim=1)
+        x_3 = self.conv_res_3(x_2)
+        x = func.relu(self.bn_22(x + x_3))
+
+        x = self.dropout2(func.avg_pool2d(x, (1, 3)))  # [16, 1, 5]
+        x = torch.flatten(input=x, start_dim=1)
         x = func.softmax(self.fc1(x), dim=-1)  # [2]
         return x
 
@@ -96,8 +254,6 @@ class RESNET(nn.Module):
     def __init__(self, eeg_ch, num_res_module_1, num_reduct_module_1):
         # in_shape = [C_ch, H_eegch, W_time] [1, 64, 125]
         super(RESNET, self).__init__()
-
-        # self.att_weight = torch.tensor([1.8,1.9,2.1,2.1,1.8,1.6,1.4,1.2,1])
 
         self.stem_conv11 = nn.Conv2d(in_channels=1, out_channels=4,
                                      kernel_size=(1, 5), stride=(1, 1),
@@ -212,8 +368,6 @@ class RESNET_s(nn.Module):
         # in_shape = [C_ch, H_eegch, W_time] [1, 64, 125]
         super(RESNET_s, self).__init__()
 
-        # self.att_weight = torch.tensor([1.8,1.9,2.1,2.1,1.8,1.6,1.4,1.2,1])
-        self.att_weight = nn.Parameter(att_weight, requires_grad=True)
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=4,
                                kernel_size=(64, 1), stride=(1, 1),
                                padding='same', padding_mode='circular')
@@ -246,9 +400,6 @@ class RESNET_s(nn.Module):
                 nn.Conv2d(in_channels=8, out_channels=8,
                           kernel_size=(1, 5), stride=(1, 1),
                           padding='same'),  # branch 2
-                # nn.Conv2d(in_channels=8, out_channels=8,
-                #           kernel_size=(eeg_ch, 1), stride=(1, 1),
-                #           padding='same', padding_mode='circular'),  # branch 2
                 nn.Conv2d(in_channels=16, out_channels=48,
                           kernel_size=(1, 1), stride=(1, 1),
                           padding='same'),  # branch merged
@@ -401,6 +552,20 @@ class EegData(torch.utils.data.Dataset):
         return sample
 
 
+def adjust_learning_rate(optimizer, current_epoch, max_epoch, lr_min=0, lr_max=0.1, warmup=True):
+    warmup_epoch = 10 if warmup else 0
+    if current_epoch < warmup_epoch:
+        lr = lr_max * current_epoch / warmup_epoch
+    elif current_epoch < max_epoch:
+        lr = lr_min + (lr_max - lr_min) * (
+                1 + cos(pi * (current_epoch - warmup_epoch) / (max_epoch - warmup_epoch))) / 2
+    else:
+        lr = lr_min + (lr_max - lr_min) * (
+                1 + cos(pi * (current_epoch - max_epoch) / (max_epoch))) / 2
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+
+
 def _manual_val_split(X, Y, ratio):
     pos_ind = np.where(Y[:, 0] == 1)[0]
     neg_ind = np.where(Y[:, 1] == 1)[0]
@@ -455,8 +620,11 @@ def _compute_matrics(preds, true, print_tpr=False):
 def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_weight):
     # optimizer = optim.SGD(model.parameters(), lr=0.0005, momentum=0.9, weight_decay=0.05)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    print(device)
     optimizer = optim.Adam(model.parameters(), lr=0.00001, weight_decay=0.0)
+    lr_max = 0.0001
+    lr_min = 0.000005
+    max_epoch = 100
+
     criterion = nn.CrossEntropyLoss(weight=class_weight, label_smoothing=0.0)
     criterion.to(device)
     model.to(device)
@@ -474,6 +642,9 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
     log_testext_acc = []
     best_val_loss = 100
     for epoch in range(100):
+        adjust_learning_rate(optimizer=optimizer, current_epoch=epoch, max_epoch=max_epoch, lr_min=lr_min,
+                             lr_max=lr_max,
+                             warmup=True)
         running_train_loss = 0
         running_val_loss = 0
         running_test_loss = 0
