@@ -304,7 +304,8 @@ def _run_cnn_torch(epochs=1, flag1=True):
 
 def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
     # CH_SELECT = [9, 27, 45, 59, 43, 47, 50, 56]
-    # CH_SELECT = [9, 27, 45]
+    # CH_SELECT = [9, 27, 45, 59, 43, 47, 25, 29]
+    # CH_SELECT = [9, 27, 25, 29]
     CH_SELECT = False
     if CH_SELECT is False:
         num_ch = 64
@@ -313,7 +314,8 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
     result_to_save = []
     # save_name = 'results/torch_eegnet_0ch.csv'
     # save_name = 'results/torch_vit_0ch.csv'
-    save_name = 'results/torch_eegnetvit_0ch.csv'
+    # save_name = 'results/torch_eegnetresC_0ch_improve1.csv'
+    save_name = 'results/torch_eegnetvitA_0ch_improve.csv'
     # save_name = 'results/torch_resnet_0ch_tbc.csv'
     if not os.path.isfile(save_name) or overwrite is True:
         with open(save_name, 'w', encoding='UTF8', newline='') as f:
@@ -334,7 +336,9 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
                 TEST = [item]
             # if True:
             #     TEST = ['01_01.set']
-                batch_size_schedule = [8, 64, 128, 256, 256, 256]*2
+                batch_size_scale = 64
+                batch_size_schedule = [1 * batch_size_scale, 8 * batch_size_scale, 16 * batch_size_scale,
+                                       32 * batch_size_scale, 32 * batch_size_scale, 32 * batch_size_scale]
                 if from_npz:
                     load_name = os.path.join('D:/Data/SEP w noise/', load_name)
                     loaded = np.load(load_name)
@@ -374,15 +378,16 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
                 print(load_name)
 
                 # model = util_torch.EEGNET(eeg_ch=num_ch)
-                # model = util_torch.RESNET(eeg_ch=num_ch, num_res_module_1=1, num_reduct_module_1=1)
+                # model = util_torch.EEGNET_RES1(num_eegch=num_ch, num_res_module_1=1, num_res_module_2=1)
                 # model = util_torch.VIT(num_eegch=num_ch, num_heads=4, num_layers=1)
                 # model = util_torch.convVIT(num_eegch=num_ch, num_heads=4, num_layers=1)
-                model = util_torch.EEGNET_VIT(num_eegch=num_ch, num_heads=4, num_layers=1)
+                model = util_torch.EEGNET_VIT_A(num_eegch=num_ch, num_heads=4, num_layers=1)
                 constraints_1 = util_torch.weightConstraint(-1, 1)
-                constraints_2 = util_torch.weightConstraint(-0.25, 0.25)
+                constraints_2 = util_torch.weightConstraint(-1, 1)
                 model._modules['conv_spatial'].apply(constraints_1)
-                model._modules['fc1'].apply(constraints_2)
-                learning_rate = 0.02
+                # model._modules['fc1'].apply(constraints_2)
+                model._modules['MLP_head']._modules['2'].apply(constraints_2)
+                learning_rate = 0.01
                 util_torch._model_summary(model)
 
                 train_set = util_torch.EegData(X_train_, Y_train_)
@@ -574,7 +579,7 @@ def _build_dataset(trial_epochs):
 #     _run_cnn_torch()
 # _run_cnn_test2(epochs=6)
 trial_epochs=[1, 2, 3, 4, 5, 6]
-# trial_epochs = [4]
+# trial_epochs = [4, 5, 6]
 # _run_csplda_strat3(trial_epochs=trial_epochs, overwrite=True, copy_balance=False)
 _run_cnn_torch_strat3(trial_epochs=trial_epochs, from_npz=False, overwrite=True)
 # _build_dataset(trial_epochs=trial_epochs)

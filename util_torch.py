@@ -2,47 +2,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as func
 import torch.optim as optim
+import torch.optim.lr_scheduler as lr_scheduler
 import torchvision
 import torchvision.transforms as transforms
 import numpy as np
 import random
 import matplotlib.pyplot as plt
-
-
-# class EEGNET(nn.Module):
-#       # len=75
-#     def __init__(self, eeg_ch):
-#         # in_shape = [C_ch, H_eegch, W_time] [1, 64, 75]
-#         super(EEGNET, self).__init__()
-#         self.conv1 = nn.Conv2d(in_channels=1, out_channels=8,
-#                                kernel_size=(1, 37), stride=(1, 1),
-#                                padding='same')
-#         self.bn1 = nn.BatchNorm2d(num_features=8)
-#         self.conv2 = nn.Conv2d(in_channels=8, out_channels=16,
-#                                kernel_size=(eeg_ch, 1), stride=(1, 1),
-#                                padding='valid', groups=8)
-#         self.bn2 = nn.BatchNorm2d(num_features=16)
-#         self.conv3 = nn.Conv2d(in_channels=16, out_channels=16,
-#                                kernel_size=(1, 15), stride=(1, 1),
-#                                padding='same', groups=16)
-#         self.conv4 = nn.Conv2d(in_channels=16, out_channels=16,
-#                                kernel_size=(1, 1), stride=(1, 1),
-#                                padding='valid')
-#         self.bn3 = nn.BatchNorm2d(num_features=16)
-#         self.fc1 = nn.Linear(64, 2)
-#
-#     def forward(self, x):
-#         # Block 1
-#         x = self.bn1(self.conv1(x)) # [8, ch, 75]
-#         x = self.bn2(self.conv2(x)) # [16, 1. 75]
-#         x = func.dropout(input=(func.avg_pool2d(func.elu(x), (1, 4))), p=0.25) # [16, 1, 18]
-#         # Block 2
-#         x = self.conv3(x)
-#         x = self.bn3(self.conv4(x)) # [16, 1, 18]
-#         x = func.dropout(input=(func.avg_pool2d(func.elu(x), (1, 4))), p=0.5) # [16, 1, 4]
-#         x = torch.flatten(input=x, start_dim=1) # [64]
-#         x = func.softmax(self.fc1(x), dim=-1) # [2]
-#         return x
 
 
 class weightConstraint(object):
@@ -68,10 +33,11 @@ class EEGNET(nn.Module):
                                kernel_size=(1, 63), stride=(1, 1),
                                padding='same')
         self.bn1 = nn.BatchNorm2d(num_features=8)
-        self.conv2 = nn.Conv2d(in_channels=8, out_channels=16,
+        self.conv_spatial = nn.Conv2d(in_channels=8, out_channels=16,
                                kernel_size=(eeg_ch, 1), stride=(1, 1),
                                padding='valid', groups=8)
         self.bn2 = nn.BatchNorm2d(num_features=16)
+        self.dropout1 = nn.Dropout(p=0.25)
         self.conv3 = nn.Conv2d(in_channels=16, out_channels=16,
                                kernel_size=(1, 15), stride=(1, 1),
                                padding='same', groups=16)
@@ -80,118 +46,115 @@ class EEGNET(nn.Module):
                                padding='valid')
         self.bn3 = nn.BatchNorm2d(num_features=16)
         self.fc1 = nn.Linear(80, 2)
+        self.dropout2 = nn.Dropout(p=0.5)
 
     def forward(self, x):
         # Block 1
         x = self.bn1(self.conv1(x)) # [8, ch, 125]
-        x = self.bn2(self.conv2(x)) # [16, 1, 125]
-        x = func.dropout(input=(func.avg_pool2d(func.elu(x), (1, 5))), p=0.25) # [16, 1, 25]
+        x = self.bn2(self.conv_spatial(x)) # [16, 1, 125]
+        x = func.avg_pool2d(func.elu(x), (1, 5)) # [16, 1, 25]
+        x = self.dropout1(x)
         # Block 2
         x = self.conv3(x)
         x = self.bn3(self.conv4(x)) # [16, 1, 25]
-        x = func.dropout(input=(func.avg_pool2d(func.elu(x), (1, 5))), p=0.5) # [16, 1, 5]
+        x = func.avg_pool2d(func.elu(x), (1, 5)) # [16, 1, 5]
+        x = self.dropout2(x)
         x = torch.flatten(input=x, start_dim=1) # [80]
         x = func.softmax(self.fc1(x), dim=-1) # [2]
         return x
 
 
-class EEGNET_VIT(nn.Module):
-    # len=125
-    def __init__(self, num_eegch, num_heads, num_layers):
+class EEGNET_RES_C(nn.Module):
+    # len=125 , on RES0, replace final avg_pool with conv reduct and add 1 more res
+    def __init__(self, num_eegch, num_res_module_1=1, num_res_module_2=1):
         # in_shape = [C_ch, H_eegch, W_time] [1, 64, 125]
-        super(EEGNET_VIT, self).__init__()
-        self.num_heads = num_heads
-        self.num_layers = num_layers
-        self.num_projected_features = 32
-        self.qkv_len = 16
-        self.scale = self.qkv_len ** (-0.5)
-        self.h = num_eegch
-        self.p = 5
+        super(EEGNET_RES_C, self).__init__()
         self.conv_temporal = nn.Conv2d(in_channels=1, out_channels=8,
                                kernel_size=(1, 63), stride=(1, 1),
                                padding='same')
         self.bn1 = nn.BatchNorm2d(num_features=8)
-        self.conv_spatial = nn.Conv2d(in_channels=8, out_channels=16,
+        spatial_out = 16
+        self.conv_spatial = nn.Conv2d(in_channels=8, out_channels=spatial_out,
                                kernel_size=(num_eegch, 1), stride=(1, 1),
                                padding='valid', groups=8)
-        self.bn2 = nn.BatchNorm2d(num_features=16)
-
-        self.conv_projection_1 = nn.Conv2d(in_channels=16, out_channels=32,
-                               kernel_size=(1, 5), stride=(1, 5),
-                               padding='valid', groups=16)
-        self.conv_projection_2 = nn.Conv2d(in_channels=32, out_channels=self.num_projected_features,
-                                           kernel_size=(1, 1), stride=(1, 1),
-                                           padding='same')
-
-        self.cls_token = nn.Parameter(torch.randn(1, 1, self.num_projected_features))
-        self.pe = nn.Parameter(torch.randn(1, self.p + 1, self.num_projected_features))
-        self.transformer_layers = nn.ModuleList([])
-        for i in range(self.num_layers):
-            self.transformer_layers.append(nn.ModuleList([
-                nn.Linear(self.num_projected_features, 3 * self.qkv_len * self.num_heads),  # make qkv
-                nn.Softmax(dim=-1),  # scaled dot product att softmax
-                nn.Linear(self.num_heads * self.qkv_len, self.num_projected_features),  # multi head out
-                nn.LayerNorm(self.num_projected_features),
-                nn.LayerNorm(self.num_projected_features),
-                nn.Sequential(nn.Linear(self.num_projected_features, 2 * self.num_projected_features),
-                              nn.GELU(),
-                              nn.Dropout(0.25),
-                              nn.Linear(2 * self.num_projected_features, self.num_projected_features),
-                              nn.Dropout(0.25))
+        self.bn2 = nn.BatchNorm2d(num_features=spatial_out)
+        self.dropout1 = nn.Dropout(p=0.2)
+        self.res_module_1 = nn.ModuleList([])
+        num_res1_branch = 2
+        for i in range(num_res_module_1):
+            self.res_module_1.append(nn.ModuleList([
+                nn.Conv2d(in_channels=spatial_out, out_channels=spatial_out//num_res1_branch,
+                          kernel_size=(1, 1), stride=(1, 1),
+                          padding='same'), # branch 1
+                nn.Conv2d(in_channels=spatial_out, out_channels=spatial_out//num_res1_branch,
+                          kernel_size=(1, 1), stride=(1, 1),
+                          padding='same'), # branch 2
+                nn.Conv2d(in_channels=spatial_out//num_res1_branch, out_channels=spatial_out//num_res1_branch,
+                          kernel_size=(1, 15), stride=(1, 1),
+                          padding='same'),  # branch 2
+                # nn.Conv2d(in_channels=spatial_out, out_channels=8,
+                #           kernel_size=(1, 1), stride=(1, 1),
+                #           padding='same'),  # branch 3
+                # nn.Conv2d(in_channels=8, out_channels=8,
+                #           kernel_size=(1, 15), stride=(1, 1),
+                #           padding='same'),  # branch 3
+                nn.BatchNorm2d(num_features=spatial_out)
             ]))
-        self.MLP_head = nn.Sequential(nn.LayerNorm(self.num_projected_features),
-                                      nn.Dropout(0.5),
-                                      nn.Linear(self.num_projected_features, 2),
-                                      nn.Softmax(dim=-1))
+        reduct2_out = 2*spatial_out
+        self.conv_reduction21 = nn.Conv2d(in_channels=spatial_out, out_channels=reduct2_out,
+                               kernel_size=(1, 3), stride=(1, 2),
+                               padding='valid', groups=spatial_out)
+        self.conv_reduction22 = nn.Conv2d(in_channels=reduct2_out, out_channels=reduct2_out,
+                                          kernel_size=(1, 1), stride=(1, 1),
+                                          padding='same')
+        self.bn_red2 = nn.BatchNorm2d(num_features=reduct2_out)
+        self.res_module_2 = nn.ModuleList([])
+        num_res2_branch = 2
+        for i in range(num_res_module_2):
+            self.res_module_2.append(nn.ModuleList([
+                nn.Conv2d(in_channels=reduct2_out, out_channels=reduct2_out//num_res2_branch,
+                          kernel_size=(1, 1), stride=(1, 1),
+                          padding='same'),  # branch 1
+                nn.Conv2d(in_channels=reduct2_out, out_channels=reduct2_out//num_res2_branch,
+                          kernel_size=(1, 1), stride=(1, 1),
+                          padding='same'),  # branch 2
+                nn.Conv2d(in_channels=reduct2_out//num_res2_branch, out_channels=reduct2_out//num_res2_branch,
+                          kernel_size=(1, 3), stride=(1, 1),
+                          padding='same'),  # branch 2
+                nn.BatchNorm2d(num_features=reduct2_out)
+            ]))
+        self.dropout2 = nn.Dropout(p=0.5)
+        self.fc1 = nn.Linear(2*96, 2)
 
     def forward(self, x):
         b = x.size()[0]
         # Block 1
         x = self.bn1(self.conv_temporal(x)) # [8, ch, 125]
         x = self.bn2(self.conv_spatial(x)) # [16, 1, 125]
-        x = func.dropout(input=(func.avg_pool2d(func.elu(x), (1, 5))), p=0.2) # [16, 1, 25]
-        # Block 2
-
-
-        x = self.conv_projection_1(x) # [64, 1, 5]
-        x = self.conv_projection_2(x) # [128, 1, 5]
-
-        # x[proj_f, 1, 5]
-        # Patching and positional embedding
-        x = torch.transpose(torch.reshape(x, (-1, self.num_projected_features, self.p)), 1, 2)
-        # x[b, proj_f, 1, 5] --> [b, proj_f, 5] --> [b, 5, proj_f]
-        cls_token = self.cls_token.repeat(b, 1, 1)
-        x = torch.cat((cls_token, x), dim=1)
-        # x[b, p=5, proj_f] cat token[b, 1, proj_f] --> [b, 5+1, proj_f]
-        x = x + self.pe
-        # x[b, 5+1, features]
-        # transformer
-        for make_qkv, softmax, multi_head_out, layer_norm_1, layer_norm_2, MLP in self.transformer_layers:
-            ##### QKV #####
-            qkv = make_qkv(layer_norm_1(x)).chunk(3, dim=-1)
-            # x[b, p+1, proj_f] --> [b, p+1, qkv_len*num_heads]*3
-            q = qkv[0].reshape((b, self.p + 1, self.num_heads, self.qkv_len)).transpose(1, 2)
-            # q: [b, p+1, qkv_len*num_heads] --> [b, p+1, num_heads, qkv_len] --> [b, num_heads, p+1, qkv_len]
-            k = qkv[1].reshape((b, self.p + 1, self.num_heads, self.qkv_len)).transpose(1, 2).transpose(2, 3)
-            # k: [b, p+1, qkv_len*num_heads] --> [b, p+1, num_heads, qkv_len] --> [b, num_heads, p+1, qkv_len] -> [b, num_heads, qkv_len, p+1]
-            v = qkv[2].reshape((b, self.p + 1, self.num_heads, self.qkv_len)).transpose(1, 2)
-            # v: [b, p+1, qkv_len*num_heads] --> [b, p+1, num_heads, qkv_len] --> [b, num_heads, p+1, qkv_len]
-            ##### Scaled Dot-Product Att #####
-            # [b, num_heads, p+1, qkv_len] X [b, num_heads, qkv_len, p+1] X [b, num_heads, p+1, qkv_len] -> [b, num_heads, p+1, qkv_len]
-            scaled_dot_produc_att = torch.matmul(softmax(torch.matmul(q, k) * self.scale), v)
-            # [b, num_heads, p+1, qkv_len] -> [b, p+1, num_heads*qkv_len] -> [b, p+1, projected_len]
-            multi_head_att = multi_head_out(
-                scaled_dot_produc_att.transpose(1, 2).reshape((b, self.p + 1, self.num_heads * self.qkv_len)))
-            x = multi_head_att + x
-            ##### MLP #####
-            x = MLP(layer_norm_2(x)) + x
-        x = self.MLP_head(x[:, 0, :])
-        # x = torch.reshape(x, (-1, 6 * 48))
-        # x = self.MLP_head(x)
-
-
-
-        return x
+        x = func.avg_pool2d(func.elu(x), (1, 5)) # [16, 1, 25]
+        x = self.dropout1(x)
+        # Block res1
+        for conv_res1_1, conv_res1_21, conv_res1_22, bn in self.res_module_1:
+            x_re1_1 = conv_res1_1(x)
+            x_re1_2 = conv_res1_22(conv_res1_21(x))
+            # x_re1_3 = conv_res1_32(conv_res1_31(x))
+            x = bn(x + torch.cat((x_re1_1, x_re1_2), dim=1))
+            x = func.relu(x) # [16, 1, 25]
+        # Reduction
+        x = self.conv_reduction22(self.conv_reduction21(x)) # [16, 1, 12]
+        x = func.relu(self.bn_red2(x))
+        # Block res2
+        for conv_res1_1, conv_res1_21, conv_res1_22, bn in self.res_module_2:
+            x_re1_1 = conv_res1_1(x)
+            x_re1_2 = conv_res1_22(conv_res1_21(x))
+            x = bn(x + torch.cat((x_re1_1, x_re1_2), dim=1))
+            x = func.relu(x)
+        # Out
+        x = func.avg_pool2d(x, (1, 2)) # [32, 1, 6]
+        x = torch.flatten(input=x, start_dim=1)
+        x = self.dropout2(x)
+        out = func.softmax(self.fc1(x), dim=-1)
+        return out
 
 
 class RESNET(nn.Module):
@@ -609,6 +572,190 @@ class convVIT2(nn.Module):
         return out
 
 
+class EEGNET_VIT_A(nn.Module):
+    # len=125
+    def __init__(self, num_eegch, num_heads, num_layers):
+        # in_shape = [C_ch, H_eegch, W_time] [1, 64, 125]
+        super(EEGNET_VIT_A, self).__init__()
+        self.num_heads = num_heads
+        self.num_layers = num_layers
+        self.num_projected_features = 16
+        self.qkv_len = 8
+        self.scale = self.qkv_len ** (-0.5)
+        self.h = num_eegch
+        self.p = 5
+        self.conv_temporal = nn.Conv2d(in_channels=1, out_channels=8,
+                               kernel_size=(1, 63), stride=(1, 1),
+                               padding='same')
+        self.bn1 = nn.BatchNorm2d(num_features=8)
+        self.conv_spatial = nn.Conv2d(in_channels=8, out_channels=16,
+                               kernel_size=(num_eegch, 1), stride=(1, 1),
+                               padding='valid', groups=8)
+        self.bn2 = nn.BatchNorm2d(num_features=16)
+        self.projection = nn.Linear(16 * 5, self.num_projected_features)
+        self.cls_token = nn.Parameter(torch.randn(1, 1, self.num_projected_features))
+        self.pe = nn.Parameter(torch.randn(1, self.p + 1, self.num_projected_features))
+        self.transformer_layers = nn.ModuleList([])
+        for i in range(self.num_layers):
+            self.transformer_layers.append(nn.ModuleList([
+                nn.Linear(self.num_projected_features, 3 * self.qkv_len * self.num_heads),  # make qkv
+                nn.Softmax(dim=-1),  # scaled dot product att softmax
+                nn.Linear(self.num_heads * self.qkv_len, self.num_projected_features),  # multi head out
+                nn.LayerNorm(self.num_projected_features),
+                nn.LayerNorm(self.num_projected_features),
+                nn.Sequential(nn.Linear(self.num_projected_features, 2 * self.num_projected_features),
+                              nn.GELU(),
+                              nn.Dropout(0.25),
+                              nn.Linear(2 * self.num_projected_features, self.num_projected_features),
+                              nn.Dropout(0.25))
+            ]))
+        self.MLP_head = nn.Sequential(nn.LayerNorm(self.num_projected_features),
+                                      nn.Dropout(0.5),
+                                      nn.Linear(self.num_projected_features, 2),
+                                      nn.Softmax(dim=-1))
+
+    def forward(self, x):
+        b = x.size()[0]
+        # Block 1
+        x = self.bn1(self.conv_temporal(x)) # [8, ch, 125]
+        x = self.bn2(self.conv_spatial(x)) # [16, 1, 125]
+        x = func.dropout(input=(func.avg_pool2d(func.elu(x), (1, 5))), p=0.2) # [16, 1, 25]
+        # Block 2
+        # Patching and positional embedding x[b, c=16, h=1, w=25] --> [b, p + 1, f]
+        x = torch.transpose(torch.reshape(x, (-1, 16, 1, self.p, 5)), 3, 4)
+        # x[b, c=16, h=1, w=25] --> [b, c=16, h=1, p=5, f=5] --> [b, c=16, h=1, f=5, p=5]
+        x = torch.transpose(torch.reshape(x, (-1, 16 * 5, self.p)), 1, 2)  # [b, p, h*25]
+        # x[b, c=16, h=1, f=5, p=5] --> [b, h*f=16*5, p=5] --> [b, p=5, h*f=16*5]
+        x = self.projection(x)
+        # x[b, p=5, h*f=16*5] --> [b, p=5, proj_f]
+        cls_token = self.cls_token.repeat(b, 1, 1)
+        x = torch.cat((cls_token, x), dim=1)
+        # x[b, p=5, proj_f] cat token[b, 1, proj_f] --> [b, 5+1, proj_f]
+        x = x + self.pe
+        # x[b, 5+1, features]
+        # transformer
+        for make_qkv, softmax, multi_head_out, layer_norm_1, layer_norm_2, MLP in self.transformer_layers:
+            ##### QKV #####
+            qkv = make_qkv(layer_norm_1(x)).chunk(3, dim=-1)
+            # x[b, p+1, proj_f] --> [b, p+1, qkv_len*num_heads]*3
+            q = qkv[0].reshape((b, self.p + 1, self.num_heads, self.qkv_len)).transpose(1, 2)
+            # q: [b, p+1, qkv_len*num_heads] --> [b, p+1, num_heads, qkv_len] --> [b, num_heads, p+1, qkv_len]
+            k = qkv[1].reshape((b, self.p + 1, self.num_heads, self.qkv_len)).transpose(1, 2).transpose(2, 3)
+            # k: [b, p+1, qkv_len*num_heads] --> [b, p+1, num_heads, qkv_len] --> [b, num_heads, p+1, qkv_len] -> [b, num_heads, qkv_len, p+1]
+            v = qkv[2].reshape((b, self.p + 1, self.num_heads, self.qkv_len)).transpose(1, 2)
+            # v: [b, p+1, qkv_len*num_heads] --> [b, p+1, num_heads, qkv_len] --> [b, num_heads, p+1, qkv_len]
+            ##### Scaled Dot-Product Att #####
+            # [b, num_heads, p+1, qkv_len] X [b, num_heads, qkv_len, p+1] X [b, num_heads, p+1, qkv_len] -> [b, num_heads, p+1, qkv_len]
+            scaled_dot_produc_att = torch.matmul(softmax(torch.matmul(q, k) * self.scale), v)
+            # [b, num_heads, p+1, qkv_len] -> [b, p+1, num_heads*qkv_len] -> [b, p+1, projected_len]
+            multi_head_att = multi_head_out(
+                scaled_dot_produc_att.transpose(1, 2).reshape((b, self.p + 1, self.num_heads * self.qkv_len)))
+            x = multi_head_att + x
+            ##### MLP #####
+            x = MLP(layer_norm_2(x)) + x
+        x = self.MLP_head(x[:, 0, :])
+        # x = torch.reshape(x, (-1, 6 * 48))
+        # x = self.MLP_head(x)
+
+        return x
+
+
+class EEGNET_VIT_B(nn.Module):
+    # len=125
+    def __init__(self, num_eegch, num_heads, num_layers):
+        # in_shape = [C_ch, H_eegch, W_time] [1, 64, 125]
+        super(EEGNET_VIT_B, self).__init__()
+        self.num_heads = num_heads
+        self.num_layers = num_layers
+        self.num_projected_features = 32
+        self.qkv_len = 16
+        self.scale = self.qkv_len ** (-0.5)
+        self.h = num_eegch
+        self.p = 5
+        self.conv_temporal = nn.Conv2d(in_channels=1, out_channels=8,
+                               kernel_size=(1, 63), stride=(1, 1),
+                               padding='same')
+        self.bn1 = nn.BatchNorm2d(num_features=8)
+        self.conv_spatial = nn.Conv2d(in_channels=8, out_channels=16,
+                               kernel_size=(num_eegch, 1), stride=(1, 1),
+                               padding='valid', groups=8)
+        self.bn2 = nn.BatchNorm2d(num_features=16)
+        self.dropout1 = nn.Dropout(p=0.2)
+        self.conv_projection_1 = nn.Conv2d(in_channels=16, out_channels=32,
+                               kernel_size=(1, 5), stride=(1, 5),
+                               padding='valid', groups=16)
+        self.conv_projection_2 = nn.Conv2d(in_channels=32, out_channels=self.num_projected_features,
+                                           kernel_size=(1, 1), stride=(1, 1),
+                                           padding='same')
+
+        self.cls_token = nn.Parameter(torch.randn(1, 1, self.num_projected_features))
+        self.pe = nn.Parameter(torch.randn(1, self.p + 1, self.num_projected_features))
+        self.transformer_layers = nn.ModuleList([])
+        for i in range(self.num_layers):
+            self.transformer_layers.append(nn.ModuleList([
+                nn.Linear(self.num_projected_features, 3 * self.qkv_len * self.num_heads),  # make qkv
+                nn.Softmax(dim=-1),  # scaled dot product att softmax
+                nn.Linear(self.num_heads * self.qkv_len, self.num_projected_features),  # multi head out
+                nn.LayerNorm(self.num_projected_features),
+                nn.LayerNorm(self.num_projected_features),
+                nn.Sequential(nn.Linear(self.num_projected_features, 2 * self.num_projected_features),
+                              nn.GELU(),
+                              nn.Dropout(0.25),
+                              nn.Linear(2 * self.num_projected_features, self.num_projected_features),
+                              nn.Dropout(0.25))
+            ]))
+        self.MLP_head = nn.Sequential(nn.LayerNorm(self.num_projected_features),
+                                      nn.Dropout(0.5),
+                                      nn.Linear(self.num_projected_features, 2),
+                                      nn.Softmax(dim=-1))
+
+    def forward(self, x):
+        b = x.size()[0]
+        # Block 1
+        x = self.bn1(self.conv_temporal(x)) # [8, ch, 125]
+        x = self.bn2(self.conv_spatial(x)) # [16, 1, 125]
+        x = func.avg_pool2d(func.elu(x), (1, 5)) # [16, 1, 25]
+        x = self.dropout1(x)
+        # Block 2
+
+        x = self.conv_projection_1(x) # [32, 1, 5]
+        x = self.conv_projection_2(x) # [32, 1, 5]
+
+        # x[proj_f, 1, 5]
+        # Patching and positional embedding
+        x = torch.transpose(torch.reshape(x, (-1, self.num_projected_features, self.p)), 1, 2)
+        # x[b, proj_f, 1, 5] --> [b, proj_f, 5] --> [b, 5, proj_f]
+        cls_token = self.cls_token.repeat(b, 1, 1)
+        x = torch.cat((cls_token, x), dim=1)
+        # x[b, p=5, proj_f] cat token[b, 1, proj_f] --> [b, 5+1, proj_f]
+        x = x + self.pe
+        # x[b, 5+1, proj_f]
+        # transformer
+        for make_qkv, softmax, multi_head_out, layer_norm_1, layer_norm_2, MLP in self.transformer_layers:
+            ##### QKV #####
+            qkv = make_qkv(layer_norm_1(x)).chunk(3, dim=-1)
+            # x[b, p+1, proj_f] --> [b, p+1, qkv_len*num_heads]*3
+            q = qkv[0].reshape((b, self.p + 1, self.num_heads, self.qkv_len)).transpose(1, 2)
+            # q: [b, p+1, qkv_len*num_heads] --> [b, p+1, num_heads, qkv_len] --> [b, num_heads, p+1, qkv_len]
+            k = qkv[1].reshape((b, self.p + 1, self.num_heads, self.qkv_len)).transpose(1, 2).transpose(2, 3)
+            # k: [b, p+1, qkv_len*num_heads] --> [b, p+1, num_heads, qkv_len] --> [b, num_heads, p+1, qkv_len] -> [b, num_heads, qkv_len, p+1]
+            v = qkv[2].reshape((b, self.p + 1, self.num_heads, self.qkv_len)).transpose(1, 2)
+            # v: [b, p+1, qkv_len*num_heads] --> [b, p+1, num_heads, qkv_len] --> [b, num_heads, p+1, qkv_len]
+            ##### Scaled Dot-Product Att #####
+            # [b, num_heads, p+1, qkv_len] X [b, num_heads, qkv_len, p+1] X [b, num_heads, p+1, qkv_len] -> [b, num_heads, p+1, qkv_len]
+            scaled_dot_produc_att = torch.matmul(softmax(torch.matmul(q, k) * self.scale), v)
+            # [b, num_heads, p+1, qkv_len] -> [b, p+1, num_heads*qkv_len] -> [b, p+1, projected_len]
+            multi_head_att = multi_head_out(
+                scaled_dot_produc_att.transpose(1, 2).reshape((b, self.p + 1, self.num_heads * self.qkv_len)))
+            x = multi_head_att + x
+            ##### MLP #####
+            x = MLP(layer_norm_2(x)) + x
+        x = self.MLP_head(x[:, 0, :])
+        # x = torch.reshape(x, (-1, 6 * 48))
+        # x = self.MLP_head(x)
+        return x
+
+
 # a = torch.randn(10, 3, 2, 4)
 # print(a[0, 1, 1, :])
 # a = a.transpose(1, 2) # [10, 2, 3, 4]
@@ -693,10 +840,11 @@ def _compute_matrics(preds, true, print_tpr=False):
 
 
 def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_weight, lr):
-    optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9, dampening=0.1)
+    # optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9, dampening=0.01)
+    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=0.00)
+    scheduler = lr_scheduler.LinearLR(optimizer, start_factor=1.0, end_factor=0.25, total_iters=20)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print(device)
-    # optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=0.00)
     criterion = nn.CrossEntropyLoss(weight=class_weight, label_smoothing=0.0)
     criterion.to(device)
     model.to(device)
@@ -740,6 +888,7 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
             else:
                 train_outputs = torch.cat((train_outputs, outputs), dim=0)
                 train_labels = torch.cat((train_labels, y), dim=0)
+        scheduler.step()
         _, train_predicts = torch.max(train_outputs, dim=1)
         _, train_labels = torch.max(train_labels, dim=1)
         f1, ba_acc, precision, recall, _ = _compute_matrics(train_predicts, train_labels)
@@ -838,7 +987,7 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
         if len(log_val_loss) > 29:
             vals = np.array(log_val_loss[-10:])
             trains = np.array(log_train_loss[-10:])
-            if ((np.amax(vals) - np.amin(vals)) < 0.0005) or ((np.amax(trains) - np.amin(trains)) < 0.0002) or (epoch_since_last_best > 30):
+            if ((np.amax(vals) - np.amin(vals)) < 0.0005) or ((np.amax(trains) - np.amin(trains)) < 0.0002) or (epoch_since_last_best > 40):
                 print('Triggered early stopping.')
                 break
     print(out)

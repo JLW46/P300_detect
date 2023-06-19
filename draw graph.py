@@ -1034,29 +1034,37 @@ def _plot_torch_acc(path):
 def _draw_boxplot():
 
     files = [
-        r'D:\Code\PycharmProjects\P300_detect\results_new\torch_csp_0ch.csv',
+        # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_csp_0ch.csv',
         # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_csp_8ch_16comp.csv',
         # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_csp_3ch.csv',
-        r'D:\Code\PycharmProjects\P300_detect\results_new\torch_eegnet_0ch.csv',
+        r'D:\Code\PycharmProjects\P300_detect\results_new\torch_eegnet_0ch_0610.csv',
+        # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_eegnet_8ch_0610.csv',
+        # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_eegnet_4ch_0610.csv',
+        r'D:\Code\PycharmProjects\P300_detect\results_new\torch_eegnetvit_0ch_0610.csv',
+        r'D:\Code\PycharmProjects\P300_detect\results_new\torch_eegnetvit_0ch_0610_improved.csv',
+        # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_eegnetvit_8ch_0610.csv',
+        # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_eegnetvit_4ch_0610.csv',
+        r'D:\Code\PycharmProjects\P300_detect\results_new\torch_eegnetresC_0ch_0612.csv',
         # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_eegnet_8ch.csv',
         # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_eegnet_3ch.csv',
         # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_resnet_0ch_0526.csv',
         # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_resnet_0ch.csv',
-        r'D:\Code\PycharmProjects\P300_detect\results_new\torch_resnet_0ch_1L.csv',
+        # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_resnet_0ch_1L.csv',
         # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_resnet_0ch_2L.csv',
         # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_resnet_0ch_3L.csv',
         # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_resnet_8ch.csv',
         # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_resnet_3ch.csv',
         # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_vit_0ch_0601.csv',
         # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_vit_0ch_0602.csv',
-        r'D:\Code\PycharmProjects\P300_detect\results_new\torch_convvit_0ch.csv',
+        # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_convvit_0ch.csv',
         # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_vit_0ch.csv'
         ]
     acc = []
     for file in files:
         out = _plot_torch_acc(file)
         # acc.append(out['acc'])
-        acc.append(out['acc'])
+        acc.append(out['acc_ext'])
+        # acc.append(out['fp_noise'])
     label_place = int(0.5*len(files))
     fig = plt.figure()
     ax1 = fig.add_subplot(111)
