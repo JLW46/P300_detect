@@ -74,7 +74,7 @@ class EEGNET_Res_B(nn.Module):
         self.bn1 = nn.BatchNorm2d(num_features=8)
         self.conv_spatial = nn.Conv2d(in_channels=8, out_channels=16,
                                       kernel_size=(eeg_ch, 1), stride=(1, 1),
-                                      padding='valid')
+                                      padding='valid', groups=8)
         self.bn2 = nn.BatchNorm2d(num_features=16)
 
         self.conv_res_1 = nn.Conv2d(in_channels=16, out_channels=8,
@@ -211,7 +211,7 @@ class EEGNET_Res_D(nn.Module):
         self.bn1 = nn.BatchNorm2d(num_features=8)
         self.conv_spatial = nn.Conv2d(in_channels=8, out_channels=16,
                                       kernel_size=(eeg_ch, 1), stride=(1, 1),
-                                      padding='valid')
+                                      padding='valid', groups=8)
         self.bn2 = nn.BatchNorm2d(num_features=16)
 
         self.conv_res_1 = nn.Conv2d(in_channels=16, out_channels=32,
