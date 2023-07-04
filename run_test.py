@@ -198,7 +198,7 @@ TEST = [
 
 # FOLDER = r'D:/Code/PycharmProjects/P300_detect/data/SEP BCI 125 0-20 no ICA'
 # FOLDER = r'D:\Code\PycharmProjects\P300_detect\data\SEP BCI 125 0-20 with noise'
-FOLDER = r'F:\HKU_Internship\SEP BCI 125 0-20 with noise'
+FOLDER = r'F:\PycharmProjects\P300_detect\data\SEP BCI 125 0-20 with noise'
 
 '''
 def _run_cnn_test():
@@ -483,9 +483,9 @@ def _run_cnn_test2(epochs=1):
 
 
 def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
-    # CH_SELECT = [9, 27, 45, 59, 43, 47, 50, 56]
+    CH_SELECT = [9, 27, 45, 59, 43, 47, 25, 29]
     # CH_SELECT = [9, 27, 45]
-    CH_SELECT = False
+    # CH_SELECT = False
     if CH_SELECT is False:
         num_ch = 64
     else:
@@ -493,18 +493,19 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
     result_to_save = []
     # save_name = 'F:/HKU_Internship/result/torch_eegnet_0ch.csv'
     # save_name = 'F:/HKU_Internship/result/torch_vit_0ch.csv'
-    save_name = 'results/torch_EEGNET_half.csv'
+    save_name = 'results/torch_EEGNET_auc_8ch.csv'
     if not os.path.isfile(save_name) or overwrite is True:
         with open(save_name, 'w', encoding='UTF8', newline='') as f:
             writer = csv.writer(f)
-            writer.writerow(['test', 'epochs',
-                             'loss', 'acc', 'prec', 'recall', 'f1',
-                             'ext_loss', 'ext_acc', 'ext_prec', 'ext_recall', 'ext_f1', 'fp_over_p'])
+            writer.writerow(['test', 'epochs', 'loss', 'acc',
+                             'acc_0.4', 'acc_0.5', 'acc_0.6', 'acc_0.7', 'auc',
+                             'loss_ext', 'acc_ext', 'acc_ext_0.4', 'acc_ext_0.5', 'acc_ext_0.6', 'acc_ext_0.7',
+                             'auc_ext', 'best_thre'])
             f.close()
 
     for epochs in trial_epochs:
         for sbj in ['01', '02', '03', '04', '06', '07', '08', '09']:
-            # for sbj in ['02']:
+        # for sbj in ['03']:
             # create TRAIN
             TRAIN = []
             for set in ['_01', '_02', '_03', '_04', '_05', '_06']:
@@ -538,11 +539,11 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
                         ch_select=CH_SELECT,
                         num_reps=epochs)
                     X_train_, Y_train_, X_val_, Y_val_ = util_torch._manual_val_split(X_train, Y_train, ratio=0.85)
-                if CH_SELECT is not False:
-                    X_train_ = X_train_[:, :, CH_SELECT, :]
-                    X_val_ = X_val_[:, :, CH_SELECT, :]
-                    X_test = X_test[:, :, CH_SELECT, :]
-                    X_test_ext = X_test_ext[:, :, CH_SELECT, :]
+                # if CH_SELECT is not False:
+                #     X_train_ = X_train_[:, :, CH_SELECT, :]
+                #     X_val_ = X_val_[:, :, CH_SELECT, :]
+                #     X_test = X_test[:, :, CH_SELECT, :]
+                #     X_test_ext = X_test_ext[:, :, CH_SELECT, :]
                 print('train')
                 print(np.shape(X_train_))
                 print(np.shape(Y_train_))
@@ -552,12 +553,12 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
                 print('test_ext')
                 print(np.shape(X_test_ext))
                 print(np.shape(Y_test_ext))
-                print('[target non_target]')
-                print(np.sum(Y_train_, axis=0))
-                print(np.sum(Y_test, axis=0))
-                print(np.sum(Y_test_ext, axis=0))
+                # print('[target non_target]')
+                # print(np.sum(Y_train_, axis=0))
+                # print(np.sum(Y_test, axis=0))
+                # print(np.sum(Y_test_ext, axis=0))
 
-                model = util_torch.EEGNET_Res(eeg_ch=num_ch)
+                model = util_torch.EEGNET(eeg_ch=num_ch)
                 # model = util_torch.RESNET(eeg_ch=num_ch, num_res_module_1=1, num_reduct_module_1=1)
                 # model = util_torch.VIT(num_eegch=num_ch, num_heads=4, num_layers=1)
                 # model = util_torch.EEGNET_VIT(num_eegch=num_ch, num_heads=4, num_layers=1)
@@ -572,15 +573,18 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
                 # data_set_train = util_torch.EegData(X_train, Y_train)
                 # train_set, val_set = torch.utils.data.random_split(data_set_train, [0.8, 0.2])
 
-                train_set = util_torch.EegData(X_train_, Y_train_)
-                val_set = util_torch.EegData(X_val_, Y_val_)
-                test_set = util_torch.EegData(X_test, Y_test)
-                test_set_ext = util_torch.EegData(np.concatenate([X_test, X_test_ext], axis=0),
-                                                  np.concatenate([Y_test, Y_test_ext], axis=0))
-                sum_1 = np.sum(Y_train_, axis=0)
-                class_weight = np.array([sum_1[1], sum_1[0]]) / (sum_1[1] + sum_1[0])
+                sum_1 = len(np.where(Y_train_[:] == 1)[0])
+                sum_0 = len(np.where(Y_train_[:] == 0)[0])
+                class_weight = np.array([sum_0, sum_1]) / (sum_1 + sum_0)
                 print(f'Class Weight: {class_weight}')
-                class_weight = torch.from_numpy(class_weight).float()
+
+                train_set = util_torch.EegData(X_train_, Y_train_, class_weight)
+                val_set = util_torch.EegData(X_val_, Y_val_, class_weight)
+                test_set = util_torch.EegData(X_test, Y_test, class_weight)
+                test_set_ext = util_torch.EegData(np.concatenate([X_test, X_test_ext], axis=0),
+                                                  np.concatenate([Y_test, Y_test_ext], axis=0), class_weight)
+
+                # class_weight = torch.from_numpy(class_weight).float()
 
                 data_lens = [len(train_set), len(val_set), len(test_set), len(test_set_ext)]
                 print(data_lens)
@@ -597,13 +601,15 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
                                                     class_weight=class_weight)
 
                 result_to_save.append([TEST[0].split('.')[0], epochs,
-                                       out['loss'], out['acc'], out['prec'], out['recall'], out['f1'],
-                                       out['loss_ext'], out['acc_ext'], out['prec_ext'], out['recall_ext'],
-                                       out['f1_ext'], out['fp_over_allp']])
+                                       out['loss'], out['acc'], out['acc_0.4'], out['acc_0.5'], out['acc_0.6'],
+                                       out['acc_0.7'], out['auc'], out['loss_ext'], out['acc_ext'],
+                                       out['acc_ext_0.4'], out['acc_ext_0.5'], out['acc_ext_0.6'], out['acc_ext_0.7'],
+                                       out['auc_ext'], out['best_thre']])
                 row = [TEST[0].split('.')[0], epochs,
-                       out['loss'], out['acc'], out['prec'], out['recall'], out['f1'],
-                       out['loss_ext'], out['acc_ext'], out['prec_ext'], out['recall_ext'],
-                       out['f1_ext'], out['fp_over_allp']]
+                       out['loss'], out['acc'], out['acc_0.4'], out['acc_0.5'], out['acc_0.6'],
+                       out['acc_0.7'], out['auc'], out['loss_ext'], out['acc_ext'],
+                       out['acc_ext_0.4'], out['acc_ext_0.5'], out['acc_ext_0.6'], out['acc_ext_0.7'],
+                       out['auc_ext'], out['best_thre']]
                 with open(save_name, 'a', encoding='UTF8', newline='') as f:
                     writer = csv.writer(f)
                     writer.writerow(row)
@@ -756,8 +762,8 @@ def _run_cnn_torch_strat3(trial_epochs=[1], from_npz=False, overwrite=True):
 #     _run_cnn_test2(epochs=i)
 #     _run_cnn_torch()
 # _run_cnn_test2(epochs=6)
-# trial_epochs=[1, 2, 3, 4, 5, 6]
-trial_epochs = [1, 2, 3]
+trial_epochs = [1, 2, 3, 4, 5, 6]
+# trial_epochs = [1, 2, 3]
 _run_cnn_torch_strat3(trial_epochs=trial_epochs, from_npz=False, overwrite=False)
 # _build_dataset(trial_epochs=trial_epochs)
 

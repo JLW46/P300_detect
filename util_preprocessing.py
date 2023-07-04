@@ -635,7 +635,7 @@ def _read_data_strat3(PATH, ch_select=False, norm=True, plot=False, test=False, 
             combinations = _combos(events, label, num_reps)
             for combo in combinations:
                 X_train.append(np.mean(X[list(combo)], axis=0))
-                Y_train.append([1, 0])
+                Y_train.append([1])
                 events_new.append(label)
         for label in non_targets:
             # inds = list(np.where(events == label)[0])
@@ -646,24 +646,24 @@ def _read_data_strat3(PATH, ch_select=False, norm=True, plot=False, test=False, 
             combinations = _combos(events, label, num_reps)
             for combo in combinations:
                 X_train.append(np.mean(X[list(combo)], axis=0))
-                Y_train.append([0, 1])
+                Y_train.append([0])
                 events_new.append(label)
     elif test is True:
         for label in targets:
             inds = list(np.where(events == label)[0])
             for i in range(len(inds) - num_reps + 1):
                 X_test.append(np.mean(X[list(inds[i:i + num_reps])], axis=0))
-                Y_test.append([1, 0])
+                Y_test.append([1])
             for label in non_targets:
                 inds = list(np.where(events == label)[0])
                 for i in range(len(inds) - num_reps + 1):
                     X_test.append(np.mean(X[list(inds[i:i + num_reps])], axis=0))
-                    Y_test.append([0, 1])
+                    Y_test.append([0])
             for label in non_targets_extended:
                 inds = list(np.where(events == label)[0])
                 for i in range(len(inds) - num_reps + 1):
                     X_test_ext.append(np.mean(X[list(inds[i:i + num_reps])], axis=0))
-                    Y_test_ext.append([0, 1])
+                    Y_test_ext.append([0])
     X_train = np.array(X_train)
     Y_train = np.array(Y_train)
     X_test = np.array(X_test)

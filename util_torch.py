@@ -8,6 +8,9 @@ import numpy as np
 import random
 import math
 from math import cos, pi
+from sklearn.metrics import auc, roc_curve
+import matplotlib.pyplot as plt
+import matplotlib.font_manager as font_manager
 
 
 class weightConstraint(object):
@@ -33,9 +36,9 @@ class EEGNET(nn.Module):
                                kernel_size=(1, 63), stride=(1, 1),
                                padding='same')
         self.bn1 = nn.BatchNorm2d(num_features=8)
-        self.conv2 = nn.Conv2d(in_channels=8, out_channels=16,
-                               kernel_size=(eeg_ch, 1), stride=(1, 1),
-                               padding='valid', groups=8)
+        self.conv_spatial = nn.Conv2d(in_channels=8, out_channels=16,
+                                      kernel_size=(eeg_ch, 1), stride=(1, 1),
+                                      padding='valid', groups=8)
         self.bn2 = nn.BatchNorm2d(num_features=16)
         self.conv3 = nn.Conv2d(in_channels=16, out_channels=16,
                                kernel_size=(1, 13), stride=(1, 1),
@@ -44,19 +47,19 @@ class EEGNET(nn.Module):
                                kernel_size=(1, 1), stride=(1, 1),
                                padding='valid')
         self.bn3 = nn.BatchNorm2d(num_features=16)
-        self.fc1 = nn.Linear(80, 2)
+        self.fc1 = nn.Linear(80, 1)
 
     def forward(self, x):
         # Block 1
         x = self.bn1(self.conv1(x))  # [8, ch, 125]
-        x = self.bn2(self.conv2(x))  # [16, 1, 125]
+        x = self.bn2(self.conv_spatial(x))  # [16, 1, 125]
         x = func.dropout(input=(func.avg_pool2d(func.elu(x), (1, 5))), p=0.25)  # [16, 1, 25]
         # Block 2
         x = self.conv3(x)
         x = self.bn3(self.conv4(x))  # [16, 1, 25]
         x = func.dropout(input=(func.avg_pool2d(func.elu(x), (1, 5))), p=0.5)  # [16, 1, 5]
         x = torch.flatten(input=x, start_dim=1)  # [80]
-        x = func.softmax(self.fc1(x), dim=-1)  # [2]
+        x = func.sigmoid(self.fc1(x))  # [2]
         return x
 
 
@@ -86,7 +89,7 @@ class EEGNET_Res_B(nn.Module):
 
         self.bn_res = nn.BatchNorm2d(num_features=16)
 
-        self.fc1 = nn.Linear(80, 2)
+        self.fc1 = nn.Linear(80, 1)
         self.dropout1 = nn.Dropout(p=0.25)
         self.dropout2 = nn.Dropout(p=0.5)
 
@@ -107,7 +110,7 @@ class EEGNET_Res_B(nn.Module):
         x = self.dropout2(func.avg_pool2d(x, (1, 5)))  # [16, 1, 5]
         x = torch.flatten(input=x, start_dim=1)
 
-        x = func.softmax(self.fc1(x), dim=-1)  # [2]
+        x = func.sigmoid(self.fc1(x))  # [2]
         return x
 
 
@@ -165,7 +168,7 @@ class EEGNET_Res_C(nn.Module):
                 nn.BatchNorm2d(num_features=reduct2_out)
             ]))
         self.dropout2 = nn.Dropout(p=0.5)
-        self.fc1 = nn.Linear(2 * 96, 2)
+        self.fc1 = nn.Linear(2 * 96, 1)
 
     def forward(self, x):
         b = x.size()[0]
@@ -193,7 +196,7 @@ class EEGNET_Res_C(nn.Module):
         x = func.avg_pool2d(x, (1, 2))  # [32, 1, 6]
         x = torch.flatten(input=x, start_dim=1)
         x = self.dropout2(x)
-        out = func.softmax(self.fc1(x), dim=-1)
+        out = func.sigmoid(self.fc1(x))
         return out
 
 
@@ -225,7 +228,7 @@ class EEGNET_Res_D(nn.Module):
                                     padding='same')
         self.bn_res = nn.BatchNorm2d(num_features=16)
 
-        self.fc1 = nn.Linear(128, 2)
+        self.fc1 = nn.Linear(128, 1)
         self.dropout1 = nn.Dropout(p=0.25)
         self.dropout2 = nn.Dropout(p=0.5)
 
@@ -241,11 +244,11 @@ class EEGNET_Res_D(nn.Module):
         x_22 = self.conv_res_22(x_1)  # branch 2
         x_2 = torch.cat((x_21, x_22), dim=1)
         x_3 = self.conv_res_3(x_2)
-        x = func.relu(self.bn_22(x + x_3))
+        x = func.relu(self.bn_res(x + x_3))
 
         x = self.dropout2(func.avg_pool2d(x, (1, 3)))  # [16, 1, 5]
         x = torch.flatten(input=x, start_dim=1)
-        x = func.softmax(self.fc1(x), dim=-1)  # [2]
+        x = func.sigmoid(self.fc1(x))  # [2]
         return x
 
 
@@ -349,8 +352,6 @@ class RESNET(nn.Module):
             x_33 = red_conv_33(x_32)  # 32,1,9
             x = torch.cat((x_1, x_2, x_33), dim=1)
         # [96, 1, 9]
-
-        x = torch.mul(x, att_weight)
 
         x = func.avg_pool2d(x, (1, 3), stride=(1, 2))
         x = torch.flatten(input=x, start_dim=1)
@@ -529,31 +530,43 @@ class VIT(nn.Module):
 
 
 class EegData(torch.utils.data.Dataset):
-    def __init__(self, raw_x, raw_y):
+    def __init__(self, raw_x, raw_y, class_weight):
         """
         raw: raw eeg samples in numpy [n_batch, c, ch_eeg, time]
         """
         self.raw_x = raw_x
         self.raw_y = raw_y
+        self.class_weight = class_weight
 
     def __len__(self):
         return np.shape(self.raw_x)[0]
 
     def __getitem__(self, item):
+        sample_weight = []
         if torch.is_tensor(item):
             item = item.tolist()
         if torch.is_tensor(self.raw_x):
+            if self.raw_y[item] == 1:
+                weight = self.class_weight[0]
+            else:
+                weight = self.class_weight[1]
             sample = {'x': self.raw_x[item, :, :, :],
-                      'y': self.raw_y[item, :]}
+                      'y': self.raw_y[item],
+                      'weight': weight}
         else:
+            if self.raw_y[item] == 1:
+                weight = self.class_weight[0]
+            else:
+                weight = self.class_weight[1]
             sample = {'x': torch.from_numpy(self.raw_x[item, :, :, :]).float(),
-                      'y': torch.from_numpy(self.raw_y[item, :]).float()}
+                      'y': torch.from_numpy(np.array(self.raw_y[item])).float(),
+                      'weight': torch.from_numpy(np.array(weight)).float()}
 
         return sample
 
 
 def adjust_learning_rate(optimizer, current_epoch, max_epoch, lr_min=0, lr_max=0.1, warmup=True):
-    warmup_epoch = 10 if warmup else 0
+    warmup_epoch = 5 if warmup else 0
     if current_epoch < warmup_epoch:
         lr = lr_max * current_epoch / warmup_epoch
     elif current_epoch < max_epoch:
@@ -567,8 +580,8 @@ def adjust_learning_rate(optimizer, current_epoch, max_epoch, lr_min=0, lr_max=0
 
 
 def _manual_val_split(X, Y, ratio):
-    pos_ind = np.where(Y[:, 0] == 1)[0]
-    neg_ind = np.where(Y[:, 1] == 1)[0]
+    pos_ind = np.where(Y[:] == 1)[0]
+    neg_ind = np.where(Y[:] == 0)[0]
     random.shuffle(pos_ind)
     random.shuffle(neg_ind)
     pos_train = pos_ind[:int(len(pos_ind) * ratio)]
@@ -580,6 +593,154 @@ def _manual_val_split(X, Y, ratio):
     Y_train = np.concatenate([Y[pos_train], Y[neg_train]], axis=0)
     Y_val = np.concatenate([Y[pos_val], Y[neg_val]], axis=0)
     return X_train, Y_train, X_val, Y_val
+
+
+def draw_roc(fpr, tpr, roc_auc, stage):
+    plt.figure()
+    lw = 2
+    plt.plot(fpr, tpr, color='darkorange',
+             lw=lw, label='ROC curve (area = %0.2f)' % roc_auc)
+    plt.plot([0, 1], [0, 1], color='navy', lw=lw, linestyle='--')
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title(stage)
+    plt.legend(loc="lower right")
+    # plt.savefig('roc.png', )
+    plt.show()
+
+def draw_acc(ba_acc, thresholds):
+    plt.figure()
+    lw = 2
+    plt.plot(thresholds, ba_acc, color='darkorange', lw=lw,
+             label='ACC-Threshold_curve')
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('Thresholds')
+    plt.ylabel('Balanced_ACC')
+    plt.legend(loc="lower right")
+    # plt.savefig('roc.png', )
+    plt.show()
+
+
+def draw_pred(preds, true):
+    preds_p = []
+    preds_n = []
+    for i in range(len(preds)):
+        preds[i] = preds[i].cpu().detach().numpy()
+        true[i] = true[i].cpu().detach().numpy()
+        pos_ind = np.where((true[i] == 1))
+        preds_p.append(preds[i][pos_ind])
+        preds_n.append(np.delete(preds[i], pos_ind))
+
+
+    distr = []
+    distr.append(preds_p)
+    distr.append(preds_n)
+
+    label_place = int(0.5 * 2)
+    fig = plt.figure()
+    ax1 = fig.add_subplot(111)
+    ax1.set_title(str('Distribution'), fontsize=14)
+    # ax1.set_ylabel('Balanced Accuracy', fontsize=24)
+    ax1.set_ylabel('Prediction', fontsize=14)
+    ax1.set_xlabel('Stage of training', fontsize=14)
+    COLOR = ['mistyrose', 'mediumpurple', 'powderblue', 'gold', 'red', 'blue', 'rosybrown', 'red', 'blue']
+    boxplots = []
+    legends = []
+    for i in range(2):
+
+        labels = ['train', 'val', 'test', 'testext']
+        x_spacing = np.array(range(4)) * (2 + label_place + 2) + i
+        bp = ax1.boxplot(distr[i], labels=labels, positions=x_spacing, patch_artist=True, showmeans=True,
+                         boxprops=dict(facecolor=COLOR[i], linewidth=2),
+                         whiskerprops=dict(linewidth=2),
+                         capprops=dict(linewidth=2),
+                         flierprops=dict(marker='+', markersize=12),
+                         meanprops=dict(markersize=12, color='black'),
+                         medianprops=dict(linewidth=3, color='black'))
+        boxplots.append(bp)
+        legends.append(bp["boxes"][0])
+    font = font_manager.FontProperties(style='normal', size=14)
+    ax1.legend(legends, ['target', 'non_target'], loc='upper left', prop=font)
+    ax1.tick_params(axis='both', which='major', labelsize=14)
+    ax1.set_ylim([0, 1])
+    # ax1.legend(legends, ['csp_0', 'csp_8', 'csp_3', 'eegnet_0', 'eegnet_8', 'eegnet_3', 'resnet_0', 'resnet_8', 'resnet_3'], loc='upper right')
+    ax1.yaxis.grid(True)
+
+    plt.show()
+
+def best_threshold(FPR, TPR, thresholds, stage):
+    TNR = 1 - FPR
+    balanced_acc = (TPR + TNR) / 2
+    # if stage == 'val':
+    #     draw_acc(balanced_acc, thresholds)
+    max_ind = np.argmax(balanced_acc)
+    return thresholds[max_ind], balanced_acc[max_ind]
+
+
+def _compute_matrics_2(preds, true, stage):
+
+    true = true.cpu().detach()
+    preds = preds.cpu().detach()
+    FPR, TPR, thresholds = roc_curve(true, preds, pos_label=1)
+    auc_score = auc(FPR, TPR)
+    # draw_roc(FPR, TPR, auc_score, stage)
+    best_thre, balanced_acc = best_threshold(FPR, TPR, thresholds, stage)
+    return balanced_acc, auc_score, best_thre
+
+
+def _compute_matrics_test(preds, true, best_threshold, stage):
+    true = true.cpu().detach()
+    preds = preds.cpu().detach()
+    FPR, TPR, thresholds = roc_curve(true, preds, pos_label=1)
+    auc_score = auc(FPR, TPR)
+    # draw_roc(FPR, TPR, auc_score, stage)
+    TP = 0
+    TN = 0
+    FP = 0
+    FN = 0
+    for i in range(len(preds)):
+        if true[i] == 1:
+            if preds[i] >= best_threshold:
+                TP = TP + 1
+            else:
+                FN = FN + 1
+        else:
+            if preds[i] < best_threshold:
+                TN = TN + 1
+            else:
+                FP = FP + 1
+    tpr = TP / (TP + FN)
+    tnr = TN / (TN + FP)
+    balanced_acc = (tpr + tnr) / 2
+    return balanced_acc, auc_score
+
+
+def _compute_acc_test(preds, true):
+    acc = []
+    for threshold in [0.4, 0.5, 0.6, 0.7]:
+        TP = 0
+        TN = 0
+        FP = 0
+        FN = 0
+        for i in range(len(preds)):
+            if true[i] == 1:
+                if preds[i] >= threshold:
+                    TP = TP + 1
+                else:
+                    FN = FN + 1
+            else:
+                if preds[i] < threshold:
+                    TN = TN + 1
+                else:
+                    FP = FP + 1
+        tpr = TP / (TP + FN)
+        tnr = TN / (TN + FP)
+        balanced_acc = (tpr + tnr) / 2
+        acc.append(balanced_acc)
+    return acc[0], acc[1], acc[2], acc[3]
 
 
 def _compute_matrics(preds, true, print_tpr=False):
@@ -617,34 +778,41 @@ def _compute_matrics(preds, true, print_tpr=False):
     return f1, balanced_acc, precision, recall, FP / (FP + TN)
 
 
+
+
+
+
 def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_weight):
     # optimizer = optim.SGD(model.parameters(), lr=0.0005, momentum=0.9, weight_decay=0.05)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     optimizer = optim.Adam(model.parameters(), lr=0.00001, weight_decay=0.0)
-    lr_max = 0.0001
-    lr_min = 0.000005
+    lr_max = 0.0005
+    lr_min = 0.00001
     max_epoch = 100
 
-    criterion = nn.CrossEntropyLoss(weight=class_weight, label_smoothing=0.0)
-    criterion.to(device)
+    # criterion = nn.CrossEntropyLoss(weight=class_weight, label_smoothing=0.0)
+    # criterion = nn.BCELoss()
+    # criterion.to(device)
     model.to(device)
     log_train_loss = []
     log_val_loss = []
     log_test_loss = []
     log_testext_loss = []
-    log_train_f1 = []
-    log_val_f1 = []
-    log_test_f1 = []
-    log_testext_f1 = []
+    log_train_auc = []
+    log_val_auc = []
+    log_test_auc = []
+    log_testext_auc = []
     log_train_acc = []
     log_val_acc = []
     log_test_acc = []
     log_testext_acc = []
+    log_best_threshold = []
+    log_test_acc_0 = []  # threshold=0.4, 0.5, 0.6, 0.7
+    log_testext_acc_0 = []
     best_val_loss = 100
     for epoch in range(100):
         adjust_learning_rate(optimizer=optimizer, current_epoch=epoch, max_epoch=max_epoch, lr_min=lr_min,
-                             lr_max=lr_max,
-                             warmup=True)
+                             lr_max=lr_max, warmup=True)
         running_train_loss = 0
         running_val_loss = 0
         running_test_loss = 0
@@ -653,14 +821,19 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
         val_outputs = None
         test_outputs = None
         testext_outputs = None
+        preds = []
+        true = []
+
 
         model.train()
         for i_batch, data_batch in enumerate(train_loader):
             x = data_batch['x'].to(device)
             y = data_batch['y'].to(device)
+            sample_weight = data_batch['weight'].to(device)
+            sample_weight = torch.reshape(sample_weight, (len(y), 1))
             optimizer.zero_grad()
             outputs = model(x)
-            train_loss = criterion(outputs, y)
+            train_loss = func.binary_cross_entropy(outputs, y, weight=sample_weight)
             train_loss.backward()
             optimizer.step()
             running_train_loss += train_loss.item()
@@ -670,10 +843,12 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
             else:
                 train_outputs = torch.cat((train_outputs, outputs), dim=0)
                 train_labels = torch.cat((train_labels, y), dim=0)
-        _, train_predicts = torch.max(train_outputs, dim=1)
-        _, train_labels = torch.max(train_labels, dim=1)
-        f1, ba_acc, precision, recall, _ = _compute_matrics(train_predicts, train_labels)
-        log_train_f1.append(f1)
+        preds.append(train_outputs)
+        true.append(train_labels)
+        # _, train_predicts = torch.max(train_outputs, dim=1)
+        # _, train_labels = torch.max(train_labels, dim=1)
+        ba_acc, auc_score, _ = _compute_matrics_2(train_outputs, train_labels, stage='train')
+        log_train_auc.append(auc_score)
         log_train_acc.append(ba_acc)
         log_train_loss.append(running_train_loss / len(train_loader))
 
@@ -683,8 +858,10 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
                 for data_batch in val_loader:
                     x = data_batch['x'].to(device)
                     y = data_batch['y'].to(device)
+                    sample_weight = data_batch['weight'].to(device)
+                    sample_weight = torch.reshape(sample_weight, (len(y), 1))
                     outputs = model(x)
-                    val_loss = criterion(outputs, y)
+                    val_loss = func.binary_cross_entropy(outputs, y, weight=sample_weight)
                     running_val_loss += val_loss.item()
                     if val_outputs is None:
                         val_outputs = outputs
@@ -692,18 +869,24 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
                     else:
                         val_outputs = torch.cat((val_outputs, outputs), dim=0)
                         val_labels = torch.cat((val_labels, y), dim=0)
-                _, val_predicts = torch.max(val_outputs, dim=1)
-                _, val_labels = torch.max(val_labels, dim=1)
-                f1, ba_acc, precision, recall, _ = _compute_matrics(val_predicts, val_labels)
-                log_val_f1.append(f1)
+                # _, val_predicts = torch.max(val_outputs, dim=1)
+                # _, val_labels = torch.max(val_labels, dim=1)
+                preds.append(val_outputs)
+                true.append(val_labels)
+                ba_acc, auc_score, best_thre = _compute_matrics_2(val_outputs, val_labels, stage='val')
+                log_val_auc.append(auc_score)
                 log_val_acc.append(ba_acc)
+                log_best_threshold.append(best_thre)
                 log_val_loss.append(running_val_loss / len(val_loader))
+
             if test_loader is not None:
                 for data_batch in test_loader:
                     x = data_batch['x'].to(device)
                     y = data_batch['y'].to(device)
+                    sample_weight = data_batch['weight'].to(device)
+                    sample_weight = torch.reshape(sample_weight, (len(y), 1))
                     outputs = model(x)
-                    test_loss = criterion(outputs, y)
+                    test_loss = func.binary_cross_entropy(outputs, y, weight=sample_weight)
                     running_test_loss += test_loss.item()
                     if test_outputs is None:
                         test_outputs = outputs
@@ -711,19 +894,28 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
                     else:
                         test_outputs = torch.cat((test_outputs, outputs), dim=0)
                         test_labels = torch.cat((test_labels, y), dim=0)
-                _, test_predicts = torch.max(test_outputs, dim=1)
-                _, test_labels = torch.max(test_labels, dim=1)
-                f1_test, ba_acc_test, precision_test, recall_test, fp_over_alln = _compute_matrics(test_predicts,
-                                                                                                   test_labels)
-                log_test_f1.append(f1_test)
+                preds.append(test_outputs)
+                true.append(test_labels)
+                # _, test_predicts = torch.max(test_outputs, dim=1)
+                # _, test_labels = torch.max(test_labels, dim=1)
+                threshold_test = log_best_threshold[-1]
+                ba_acc_test, auc_test = _compute_matrics_test(test_outputs, test_labels, threshold_test, stage='test')
+                ba_acc_04, ba_acc_05, ba_acc_06, ba_acc_07 = _compute_acc_test(test_outputs, test_labels)  # mid: threshold=0.5
+                print(f' ACC: [{ba_acc_test:.4f}], 0.4-0.7:[{ba_acc_04:.4f}, '
+                      f'{ba_acc_05:.4f}, {ba_acc_06:.4f}, {ba_acc_07:.4f}]')
+                log_test_acc_0.append([ba_acc_04, ba_acc_05, ba_acc_06, ba_acc_07])
+                log_test_auc.append(auc_test)
                 log_test_acc.append(ba_acc_test)
                 log_test_loss.append(running_test_loss / len(test_loader))
+
             if testext_loader is not None:
                 for data_batch in testext_loader:
                     x = data_batch['x'].to(device)
                     y = data_batch['y'].to(device)
+                    sample_weight = data_batch['weight'].to(device)
+                    sample_weight = torch.reshape(sample_weight, (len(y), 1))
                     outputs = model(x)
-                    testext_loss = criterion(outputs, y)
+                    testext_loss = func.binary_cross_entropy(outputs, y, weight=sample_weight)
                     running_testext_loss += testext_loss.item()
                     if testext_outputs is None:
                         testext_outputs = outputs
@@ -731,19 +923,31 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
                     else:
                         testext_outputs = torch.cat((testext_outputs, outputs), dim=0)
                         testext_labels = torch.cat((testext_labels, y), dim=0)
-                _, testext_predicts = torch.max(testext_outputs, dim=1)
-                _, testext_labels = torch.max(testext_labels, dim=1)
-                f1_testext, ba_acc_testext, precision_testext, recall_testext, fp_over_allp = _compute_matrics(
-                    testext_predicts, testext_labels, print_tpr=True)
-                log_testext_f1.append(f1_testext)
+                preds.append(testext_outputs)
+                true.append(testext_labels)
+                # _, testext_predicts = torch.max(testext_outputs, dim=1)
+                # _, testext_labels = torch.max(testext_labels, dim=1)
+                threshold_test = log_best_threshold[-1]
+                ba_acc_testext, auc_testext = _compute_matrics_test(testext_outputs, testext_labels, threshold_test, stage='testext')
+                ba_acc_testext_04, ba_acc_testext_05, ba_acc_testext_06, ba_acc_testext_07 = _compute_acc_test(
+                    testext_outputs, testext_labels)  # mid: threshold=0.5
+                log_testext_acc_0.append([ba_acc_testext_04, ba_acc_testext_05, ba_acc_testext_06, ba_acc_testext_07])
+                log_testext_auc.append(auc_testext)
                 log_testext_acc.append(ba_acc_testext)
                 log_testext_loss.append(running_testext_loss / len(testext_loader))
+
+
+
+
         print(f'epoch: {epoch} '
               f'loss: [{running_train_loss / len(train_loader):.4f} {running_val_loss / len(val_loader):.4f} '
               f'{running_test_loss / len(test_loader):.4f} {running_testext_loss / len(testext_loader):.4f}] '
-              f'ba_acc: [{log_train_acc[-1]:.4f} {log_val_acc[-1]:.4f} {log_test_acc[-1]:.4f} {log_testext_acc[-1]:.4f}]'
-              f'f1: [{log_train_f1[-1]:.4f} {log_val_f1[-1]:.4f} {log_test_f1[-1]:.4f} {log_testext_f1[-1]:.4f}]'
-              f' *fp*: {fp_over_alln:.4f}')
+              f' ba_acc: [{log_train_acc[-1]:.4f} {log_val_acc[-1]:.4f} {log_test_acc[-1]:.4f} {log_testext_acc[-1]:.4f}]'
+              f' auc: [{log_train_auc[-1]:.4f} {log_val_auc[-1]:.4f} {log_test_auc[-1]:.4f} {log_testext_auc[-1]:.4f}]'
+              f' Threshold: {log_best_threshold[-1]:.4f}')
+
+        # draw_pred(preds, true)
+
         # if log_val_acc[-1] > best_val_acc:
         if log_val_loss[-1] <= best_val_loss:
             # store results
@@ -751,16 +955,20 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
             best_val_loss = log_val_loss[-1]
             out = {
                 'acc': log_test_acc[-1],
-                'prec': precision_test,
-                'recall': recall_test,
-                'f1': log_test_f1[-1],
+                'acc_0.4': log_test_acc_0[-1][0],
+                'acc_0.5': log_test_acc_0[-1][1],
+                'acc_0.6': log_test_acc_0[-1][2],
+                'acc_0.7': log_test_acc_0[-1][3],
+                'auc': log_test_auc[-1],
                 'loss': log_test_loss[-1],
                 'acc_ext': log_testext_acc[-1],
-                'prec_ext': precision_testext,
-                'recall_ext': recall_testext,
-                'f1_ext': log_testext_f1[-1],
+                'acc_ext_0.4': log_testext_acc_0[-1][0],
+                'acc_ext_0.5': log_testext_acc_0[-1][1],
+                'acc_ext_0.6': log_testext_acc_0[-1][2],
+                'acc_ext_0.7': log_testext_acc_0[-1][3],
+                'auc_ext': log_testext_auc[-1],
                 'loss_ext': log_testext_loss[-1],
-                'fp_over_allp': fp_over_alln
+                'best_thre': log_best_threshold[-1]
             }
             epoch_since_last_best = 0
         else:
