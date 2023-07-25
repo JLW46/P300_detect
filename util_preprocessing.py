@@ -360,6 +360,172 @@ def _build_dataset_strat3(FOLDER, TRAIN, TEST, num_reps=1):
     return X_train, Y_train, X_test, Y_test, X_test_ext, Y_test_ext
 
 
+def _build_dataset_kfold(FOLDER, TRAIN, VAL, TEST, num_reps=1):
+    files = os.listdir(FOLDER)
+    X_train = None
+    Y_train = None
+    X_val = None
+    Y_val = None
+    X_test = None
+    Y_test = None
+    X_test_ext = None
+    Y_test_ext = None
+    events_train = None
+    events_test = None
+    for file_name in files:
+        if file_name in TRAIN or file_name in TEST:
+            PATH = os.path.join(FOLDER, file_name)
+            if (file_name in TRAIN) and (file_name not in VAL):
+                out = _read_data_strat3(PATH=PATH, norm=True, plot=False, test=False,
+                                        num_reps=num_reps)
+                if X_train is None:
+                    X_train = out['X_train']
+                    Y_train = out['Y_train']
+                else:
+                    X_train = np.concatenate([X_train, out['X_train']], axis=0)
+                    Y_train = np.concatenate([Y_train, out['Y_train']], axis=0)
+            elif file_name in VAL:
+                out = _read_data_strat3(PATH=PATH, norm=True, plot=False, test=False,
+                                        num_reps=num_reps)
+                if X_val is None:
+                    X_val = out['X_train']
+                    Y_val = out['Y_train']
+                else:
+                    X_val = np.concatenate([X_val, out['X_train']], axis=0)
+                    Y_val = np.concatenate([Y_val, out['Y_train']], axis=0)
+            elif file_name in TEST:
+                out = _read_data_strat3(PATH=PATH, norm=True, plot=False, test=True,
+                                        num_reps=num_reps)
+                if X_test is None:
+                    X_test = out['X_test']
+                    Y_test = out['Y_test']
+                    X_test_ext = out['X_test_ext']
+                    Y_test_ext = out['Y_test_ext']
+                else:
+                    X_test = np.concatenate([X_test, out['X_test']], axis=0)
+                    Y_test = np.concatenate([Y_test, out['Y_test']], axis=0)
+                    X_test_ext = np.concatenate([X_test, out['X_test_ext']], axis=0)
+                    Y_test_ext = np.concatenate([Y_test, out['Y_test_ext']], axis=0)
+
+    return X_train, Y_train, X_val, Y_val, X_test, Y_test, X_test_ext, Y_test_ext
+
+
+# def _build_dataset_kfold(FOLDER, TRAIN, TEST, epochs):
+#     files = os.listdir(FOLDER)
+#     X_train = None
+#     Y_train = None
+#     X_test = None
+#     Y_test = None
+#     X_test_ext = None
+#     Y_test_ext = None
+#     events_train = None
+#     events_test = None
+#     for file_name in files:
+#         if file_name in TRAIN or file_name in TEST:
+#             PATH = os.path.join(FOLDER, file_name)
+#             if (file_name in TRAIN) and (file_name not in TEST):
+#                 out = _read_data_kfold(PATH=PATH, plot=False, test=False)
+#                 if X_train is None:
+#                     X_train = out['X_train']
+#                     Y_train = out['Y_train']
+#                 else:
+#                     X_train = np.concatenate([X_train, out['X_train']], axis=0)
+#                     Y_train = np.concatenate([Y_train, out['Y_train']], axis=0)
+#             elif file_name in TEST:
+#                 out = _read_data_kfold(PATH=PATH, plot=False, test=True)
+#                 if X_test is None:
+#                     X_test = out['X_test']
+#                     Y_test = out['Y_test']
+#                     X_test_ext = out['X_test_ext']
+#                     Y_test_ext = out['Y_test_ext']
+#                 else:
+#                     X_test = np.concatenate([X_test, out['X_test']], axis=0)
+#                     Y_test = np.concatenate([Y_test, out['Y_test']], axis=0)
+#                     X_test_ext = np.concatenate([X_test, out['X_test_ext']], axis=0)
+#                     Y_test_ext = np.concatenate([Y_test, out['Y_test_ext']], axis=0)
+#
+#     return X_train, Y_train, X_test, Y_test, X_test_ext, Y_test_ext
+#
+#
+# def _read_data_kfold(PATH, plot=False, test=False):
+#     data_pkg = mne.read_epochs_eeglab(PATH)
+#     events = _get_event(data_pkg.events, data_pkg.event_id)
+#     event_types = np.unique(np.array(events)).tolist()
+#     to_exclude = [4, 8, 32, 128, 16, 64]
+#     targets = [8]
+#     non_targets = [4]
+#     non_targets_extended = event_types
+#     for event in to_exclude:
+#         if event in non_targets_extended:
+#             non_targets_extended.remove(event)
+#     data = data_pkg._data
+#     CH = np.shape(data)[1]
+#     T = np.shape(data)[2]
+#     event_train = []
+#     event_test = []
+#     event_test_ext = []
+#     X_train = []
+#     Y_train = []
+#     X_test = []
+#     Y_test = []
+#     X_test_ext = []
+#     Y_test_ext = []
+#     for i in range(np.shape(data)[0]):
+#         x = data[i, :, :]
+#         # remove baseline by [-0.2, 0.0]s
+#         x_norm = (x - np.repeat(np.reshape(np.mean(x[:, :25], axis=1), (CH, 1)), T, axis=1)) / (
+#                 # np.repeat(np.reshape(np.std(x[:, -T_re:], axis=1), (CH, 1)), T, axis=1))
+#                 # np.repeat(np.reshape(np.std(x, axis=1), (CH, 1)), T, axis=1))
+#                 0.000001)
+#         x = x_norm
+#         if plot is False:
+#             # x = x[:, -T_re:-T_re + 75]
+#             x = x[:, -125:]
+#         elif plot is True:
+#             pass
+#         if test:
+#             if events[i] in targets:
+#                 X_test.append(np.reshape(x, (1, np.shape(x)[0], np.shape(x)[1])))
+#                 Y_test.append([1, 0])
+#                 event_test.append(events[i])
+#             elif events[i] in non_targets:
+#                 X_test.append(np.reshape(x, (1, np.shape(x)[0], np.shape(x)[1])))
+#                 Y_test.append([0, 1])
+#                 event_test.append(events[i])
+#             else:
+#                 X_test_ext.append(np.reshape(x, (1, np.shape(x)[0], np.shape(x)[1])))
+#                 Y_test_ext.append([0, 1])
+#                 event_test_ext.append(events[i])
+#         else:
+#             X_train.append(np.reshape(x, (1, np.shape(x)[0], np.shape(x)[1])))
+#             event_train.append(events[i])
+#             if events[i] in targets:
+#                 Y_train.append([1, 0])
+#             else:
+#                 Y_train.append([0, 1])
+#     X_train = np.array(X_train)
+#     Y_train = np.array(Y_train)
+#     X_test = np.array(X_test)
+#     Y_test = np.array(Y_test)
+#     X_test_ext = np.array(X_test_ext)
+#     Y_test_ext = np.array(Y_test_ext)
+#     event_train = np.array(event_train)
+#     event_test = np.array(event_test)
+#     event_test_ext = np.array(event_test_ext)
+#     out = {
+#         'X_train': X_train,
+#         'Y_train': Y_train,
+#         'X_test': X_test,
+#         'Y_test': Y_test,
+#         'X_test_ext': X_test_ext,
+#         'Y_test_ext': Y_test_ext,
+#         'event_train': event_train,
+#         'event_test': event_test,
+#         'event_test_ext': event_test_ext
+#     }
+#     return out
+
+
 def _build_dataset_eeglab_plot(FOLDER, TRAIN, TEST, CLASS):
     files = os.listdir(FOLDER)
     X_out = None
@@ -576,13 +742,14 @@ def _read_data_strat2(PATH, CLASS, ch_select=False, norm=True, plot=False, test=
         events_out = events_new
     return X_out, Y_out, events_out
 
+
 def _read_data_strat3(PATH, norm=True, plot=False, test=False, num_reps=1):
     data_pkg = mne.read_epochs_eeglab(PATH)
     events = _get_event(data_pkg.events, data_pkg.event_id)
     event_types = np.unique(np.array(events)).tolist()
     to_exclude = [4, 8, 32, 128, 16, 64]
     targets = [8]
-    non_targets = [4, 16, 64]
+    non_targets = [4]
     non_targets_extended = event_types
     for event in to_exclude:
         if event in non_targets_extended:
@@ -674,12 +841,12 @@ def _read_data_strat3(PATH, norm=True, plot=False, test=False, num_reps=1):
     return out
 
 
-def _build_dataset_plot(FOLDER):
+def _build_dataset_plot(FOLDER, SBJ):
     files = os.listdir(FOLDER)
     X = None
     Events = None
     for file_name in files:
-        if file_name.endswith('.set'):
+        if file_name.endswith('.set') and (file_name.split('_')[0] in SBJ):
             PATH = os.path.join(FOLDER, file_name)
             x, events = _read_data_plot(PATH=PATH, norm=True)
             if X is None:

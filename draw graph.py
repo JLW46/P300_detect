@@ -1032,7 +1032,6 @@ def _plot_torch_acc(path):
 
 
 def _draw_boxplot():
-
     files = [
         # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_csp_0ch.csv',
         # r'D:\Code\PycharmProjects\P300_detect\results_new\torch_csp_8ch_16comp.csv',
@@ -1101,8 +1100,9 @@ def _draw_boxplot():
     return
 
 
-def _draw_signal(events, channels, events_names = None, channel_names=None):
+def _draw_signal(events, channels, events_names=None, channel_names=None):
     FOLDER = r'data\SEP BCI 125 0-20 with noise'
+    SBJs = ['01']
     # FOLDER = r'data\test folder'
     X, Events = util_preprocessing._build_dataset_plot(FOLDER)
     plots = []
@@ -1121,7 +1121,9 @@ def _draw_signal(events, channels, events_names = None, channel_names=None):
             ax.legend(channels, loc='upper left', prop=font_manager.FontProperties(style='normal', size=16))
         if events_names is not None:
             ax.set_title(events_names[i], fontsize=18)
-        ax.set_ylabel('Potential (muV)', fontsize=16)
+        else:
+            ax.set_title(str(event), fontsize=18)
+        ax.set_ylabel('Potential ($\mu$V)', fontsize=16)
         ax.set_xlabel('Time (s)', fontsize=16)
         ax.tick_params(axis='both', which='major', labelsize=14)
         ax.set_xlim([-0.2, 1.0])
@@ -1137,12 +1139,12 @@ def _draw_signal(events, channels, events_names = None, channel_names=None):
     return
 
 # CH_SELECT = [9, 27, 25, 29] = [Fz, Cz, C3, C4]
-# _draw_signal(events=[8, 4, 20, 24, 36], channels=[9, 27, 25, 29], events_names=['Target', 'Non-Target', 'Noise_1', 'Noise_2', 'Noise_3'], channel_names=['Fz', 'Cz', 'C3', 'C4'])
+_draw_signal(events=[8, 4, 20, 24, 36], channels=[9, 27, 25, 29], events_names=['Target', 'Non-Target', 'Noise_1', 'Noise_2', 'Noise_3'], channel_names=['Fz', 'Cz', 'C3', 'C4'])
 
 
 
 
-_draw_boxplot()
+# _draw_boxplot()
 
 
 

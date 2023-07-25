@@ -8,6 +8,19 @@ import torchvision.transforms as transforms
 import numpy as np
 import random
 import matplotlib.pyplot as plt
+import os
+from sklearn.model_selection import KFold
+
+
+def seed_torch(seed=4080):
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)  # 为了禁止hash随机化，使得实验可复现
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
 
 
 class weightConstraint(object):
@@ -30,22 +43,27 @@ class EEGNET(nn.Module):
         # in_shape = [C_ch, H_eegch, W_time] [1, 64, 125]
         super(EEGNET, self).__init__()
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=8,
-                               kernel_size=(1, 63), stride=(1, 1),
-                               padding='same')
+                               kernel_size=(1, 65), stride=(1, 1),
+                               bias=False,
+                               padding='same'
+                               )
         self.bn1 = nn.BatchNorm2d(num_features=8)
         self.conv_spatial = nn.Conv2d(in_channels=8, out_channels=16,
                                kernel_size=(eeg_ch, 1), stride=(1, 1),
+                               bias=False,
                                padding='valid', groups=8)
         self.bn2 = nn.BatchNorm2d(num_features=16)
         self.dropout1 = nn.Dropout(p=0.25)
         self.conv3 = nn.Conv2d(in_channels=16, out_channels=16,
                                kernel_size=(1, 15), stride=(1, 1),
+                               bias=False,
                                padding='same', groups=16)
         self.conv4 = nn.Conv2d(in_channels=16, out_channels=16,
                                kernel_size=(1, 1), stride=(1, 1),
+                               bias=False,
                                padding='valid')
         self.bn3 = nn.BatchNorm2d(num_features=16)
-        self.fc1 = nn.Linear(80, 2)
+        self.fc1 = nn.Linear(80, 2, bias=False)
         self.dropout2 = nn.Dropout(p=0.5)
 
     def forward(self, x):
@@ -790,6 +808,7 @@ class EegData(torch.utils.data.Dataset):
 
 
 def _manual_val_split(X, Y, ratio):
+
     pos_ind = np.where(Y[:, 0] == 1)[0]
     neg_ind = np.where(Y[:, 1] == 1)[0]
     random.shuffle(pos_ind)
@@ -1029,29 +1048,188 @@ def _fit(model, train_loader, val_loader, test_loader, testext_loader, class_wei
     return model, out
 
 
+def _fit_kfold(model, train_loader, val_loader, class_weight, lr, path):
+    # optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9, dampening=0.01)
+    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=0.00)
+    scheduler = lr_scheduler.LinearLR(optimizer, start_factor=1.0, end_factor=0.25, total_iters=20)
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    print(device)
+    criterion = nn.CrossEntropyLoss(weight=class_weight, label_smoothing=0.0)
+    criterion.to(device)
+    model.to(device)
+    log_train_loss = []
+    log_val_loss = []
+    log_train_f1 = []
+    log_val_f1 = []
+    log_train_acc = []
+    log_val_acc = []
+    best_val_loss = 100
+    epoch_since_last_best = 0
+    for epoch in range(150):
+        running_train_loss = 0
+        running_val_loss = 0
+        train_outputs = None
+        val_outputs = None
+        model.train()
+        for i_batch, data_batch in enumerate(train_loader):
+            x = data_batch['x'].to(device)
+            y = data_batch['y'].to(device)
+            optimizer.zero_grad()
+            outputs = model(x)
+            train_loss = criterion(outputs, y)
+            train_loss.backward()
+            optimizer.step()
+            running_train_loss += train_loss.item()
+            if train_outputs is None:
+                train_outputs = outputs
+                train_labels = y
+            else:
+                train_outputs = torch.cat((train_outputs, outputs), dim=0)
+                train_labels = torch.cat((train_labels, y), dim=0)
+        scheduler.step()
+        _, train_predicts = torch.max(train_outputs, dim=1)
+        _, train_labels = torch.max(train_labels, dim=1)
+        f1, ba_acc, precision, recall, _ = _compute_matrics(train_predicts, train_labels)
+        log_train_f1.append(f1)
+        log_train_acc.append(ba_acc)
+        log_train_loss.append(running_train_loss/len(train_loader))
+        model.eval()
+        with torch.no_grad():
+            if val_loader is not None:
+                for data_batch in val_loader:
+                    x = data_batch['x'].to(device)
+                    y = data_batch['y'].to(device)
+                    outputs = model(x)
+                    val_loss = criterion(outputs, y)
+                    running_val_loss += val_loss.item()
+                    if val_outputs is None:
+                        val_outputs = outputs
+                        val_labels = y
+                    else:
+                        val_outputs = torch.cat((val_outputs, outputs), dim=0)
+                        val_labels = torch.cat((val_labels, y), dim=0)
+                _, val_predicts = torch.max(val_outputs, dim=1)
+                _, val_labels = torch.max(val_labels, dim=1)
+                f1, ba_acc, precision, recall, _ = _compute_matrics(val_predicts, val_labels)
+                log_val_f1.append(f1)
+                log_val_acc.append(ba_acc)
+                log_val_loss.append(running_val_loss/len(val_loader))
+
+        print(f'epoch: {epoch} '
+              f' loss: [{running_train_loss/len(train_loader):.4f} {running_val_loss/len(val_loader):.4f}]'
+              f' ba_acc: [{log_train_acc[-1]:.4f} {log_val_acc[-1]:.4f}]'
+              f' f1: [{log_train_f1[-1]:.4f} {log_val_f1[-1]:.4f}]'
+              )
+        # if log_val_acc[-1] > best_val_acc:
+        if log_val_loss[-1] <= best_val_loss:
+            # store results
+            # best_val_acc = log_val_acc[-1]
+            best_val_loss = log_val_loss[-1]
+            torch.save(model.state_dict(), path)
+            epoch_since_last_best = 0
+        else:
+            epoch_since_last_best = epoch_since_last_best + 1
+        # Early stopping
+        if len(log_val_loss) > 29:
+            vals = np.array(log_val_loss[-10:])
+            trains = np.array(log_train_loss[-10:])
+            if ((np.amax(vals) - np.amin(vals)) < 0.0005) or ((np.amax(trains) - np.amin(trains)) < 0.0002) or (epoch_since_last_best > 40):
+                print('Triggered early stopping.')
+                break
+    model.load_state_dict(torch.load(path, map_location='cpu'))
+
+    return model
+
+
+def _eval_kfold(MODELS, test_loader, testext_loader, mode='mean'):
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    print(device)
+    models_test_outputs = None
+    models_testext_outputs = None
+    for model in MODELS:
+        model.to(device)
+        model.eval()
+        with torch.no_grad():
+            if test_loader is not None:
+                test_outputs = None
+                for data_batch in test_loader:
+                    x = data_batch['x'].to(device)
+                    y = data_batch['y'].to(device)
+                    outputs = model(x)
+                    if test_outputs is None:
+                        test_outputs = outputs
+                        test_labels = y
+                    else:
+                        test_outputs = torch.cat((test_outputs, outputs), dim=0)
+                        test_labels = torch.cat((test_labels, y), dim=0)
+                if models_test_outputs is None:
+                    models_test_outputs = torch.unsqueeze(test_outputs, dim=0)
+                else:
+                    models_test_outputs = torch.cat((models_test_outputs, torch.unsqueeze(test_outputs, dim=0)), dim=0)
+
+            if testext_loader is not None:
+                testext_outputs = None
+                for data_batch in testext_loader:
+                    x = data_batch['x'].to(device)
+                    y = data_batch['y'].to(device)
+                    outputs = model(x)
+                    if testext_outputs is None:
+                        testext_outputs = outputs
+                        testext_labels = y
+                    else:
+                        testext_outputs = torch.cat((testext_outputs, outputs), dim=0)
+                        testext_labels = torch.cat((testext_labels, y), dim=0)
+                if models_testext_outputs is None:
+                    models_testext_outputs = torch.unsqueeze(testext_outputs, dim=0)
+                else:
+                    models_testext_outputs = torch.cat((models_testext_outputs, torch.unsqueeze(testext_outputs, dim=0)), dim=0)
+    if mode == 'mean':
+        models_test_outputs_mean = torch.mean(models_test_outputs, dim=0)
+        models_testext_outputs_mean = torch.mean(models_testext_outputs, dim=0)
+    _, test_predicts = torch.max(models_test_outputs_mean, dim=1)
+    _, testext_predicts = torch.max(models_testext_outputs_mean, dim=1)
+    _, test_labels = torch.max(test_labels, dim=1)
+    _, testext_labels = torch.max(testext_labels, dim=1)
+    f1_test, ba_acc_test, precision_test, recall_test, _ = _compute_matrics(test_predicts, test_labels)
+    f1_testext, ba_acc_testext, precision_testext, recall_testext, fp_over_alln = _compute_matrics(testext_predicts, testext_labels)
+    out = {
+                'acc': ba_acc_test,
+                'prec': precision_test,
+                'recall': recall_test,
+                'f1': f1_test,
+                'acc_ext': ba_acc_testext,
+                'prec_ext': precision_testext,
+                'recall_ext': recall_testext,
+                'f1_ext': f1_testext,
+                'fp_over_allp': fp_over_alln
+            }
+    print(out)
+    return out
+
+
 def _model_summary(model):
     print("model_summary")
-    print()
-    print("Layer_name" + "\t" * 7 + "Number of Parameters")
-    print("=" * 100)
-    model_parameters = [layer for layer in model.parameters() if layer.requires_grad]
-    layer_name = [child for child in model.children()]
-    j = 0
-    total_params = 0
-    print("\t" * 10)
-    for i in layer_name:
-        try:
-            bias = (i.bias is not None)
-        except:
-            bias = False
-        if bias:
-            param = model_parameters[j].numel() + model_parameters[j + 1].numel()
-            j = j + 2
-        else:
-            param = model_parameters[j].numel()
-            j = j + 1
-        print(str(i) + "\t" * 3 + str(param))
-        # total_params += param
+    # print()
+    # print("Layer_name" + "\t" * 7 + "Number of Parameters")
+    # print("=" * 100)
+    # model_parameters = [layer for layer in model.parameters() if layer.requires_grad]
+    # layer_name = [child for child in model.children()]
+    # j = 0
+    # total_params = 0
+    # print("\t" * 10)
+    # for i in layer_name:
+    #     try:
+    #         bias = (i.bias is not None)
+    #     except:
+    #         bias = False
+    #     if bias:
+    #         param = model_parameters[j].numel() + model_parameters[j + 1].numel()
+    #         j = j + 2
+    #     else:
+    #         param = model_parameters[j].numel()
+    #         j = j + 1
+    #     print(str(i) + "\t" * 3 + str(param))
+    #     # total_params += param
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
     print("=" * 100)
