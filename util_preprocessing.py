@@ -34,7 +34,7 @@ def _build_dataset_p300(PATH, WIN, CH, epochs=1, ch_last=True):
             if Flashing[i, j + 1] == 1 and Flashing[i, j] == 0:
                 x = np.reshape(Signal[i, j + 1:j + WIN + 1, :], (WIN, CH)).T
                 x_norm = (x - np.repeat(np.reshape(np.mean(x, axis=1), (CH, 1)), np.shape(x)[1], axis=1)) / (
-                        np.repeat(np.reshape(np.std(x, axis=1), (CH, 1)), np.shape(x)[1], axis=1))
+                    np.repeat(np.reshape(np.std(x, axis=1), (CH, 1)), np.shape(x)[1], axis=1))
                 if ch_last:
                     X_sample.append(np.reshape(x.T, (1, WIN, CH)))
                     X_sample_norm.append(np.reshape(x_norm.T, (1, WIN, CH)))
@@ -77,7 +77,7 @@ def _build_dataset_p300(PATH, WIN, CH, epochs=1, ch_last=True):
                     x_nontarget_cnt = x_nontarget_cnt + 1
                     x_nontarget.append(X[i, j, :, :, :])
                     x_nontarget_norm.append(X_norm[i, j, :, :, :])
-                if x_target_cnt >= epochs*2 and x_nontarget_cnt >= epochs*10:
+                if x_target_cnt >= epochs * 2 and x_nontarget_cnt >= epochs * 10:
                     X_multi_epochs.append(np.mean(np.array(x_target), axis=0))
                     X_multi_epochs_norm.append(np.mean(np.array(x_target_norm), axis=0))
                     Y_multi_epochs.append(TARGET)
@@ -119,7 +119,7 @@ def _build_dataset_p300_test(PATH, WIN, CH, LABEL, epochs=1, ch_last=True):
             if Flashing[i, j + 1] == 1 and Flashing[i, j] == 0:
                 x = np.reshape(Signal[i, j + 1:j + WIN + 1, :], (WIN, CH)).T
                 x_norm = (x - np.repeat(np.reshape(np.mean(x, axis=1), (CH, 1)), np.shape(x)[1], axis=1)) / (
-                        np.repeat(np.reshape(np.std(x, axis=1), (CH, 1)), np.shape(x)[1], axis=1))
+                    np.repeat(np.reshape(np.std(x, axis=1), (CH, 1)), np.shape(x)[1], axis=1))
                 if ch_last:
                     X_sample.append(np.reshape(x.T, (1, WIN, CH)))
                     X_sample_norm.append(np.reshape(x_norm.T, (1, WIN, CH)))
@@ -160,7 +160,7 @@ def _build_dataset_p300_test(PATH, WIN, CH, LABEL, epochs=1, ch_last=True):
                     x_nontarget_cnt = x_nontarget_cnt + 1
                     x_nontarget.append(X[i, j, :, :, :])
                     x_nontarget_norm.append(X_norm[i, j, :, :, :])
-                if x_target_cnt >= epochs*2 and x_nontarget_cnt >= epochs*10:
+                if x_target_cnt >= epochs * 2 and x_nontarget_cnt >= epochs * 10:
                     X_multi_epochs.append(np.mean(np.array(x_target), axis=0))
                     X_multi_epochs_norm.append(np.mean(np.array(x_target_norm), axis=0))
                     Y_multi_epochs.append(TARGET)
@@ -217,7 +217,8 @@ def _build_dataset_eeglab(FOLDER, TRAIN, TEST, CLASS, ch_last=False,
             PATH = os.path.join(FOLDER, file_name)
             # X, Y, events = _read_data_eeglab(PATH=PATH, CLASS=CLASS, ch_last=ch_last, norm=True, epochs=3, sampling='random')
             if (file_name in TRAIN) and (file_name not in TEST):
-                X, Y, events = _read_data_eeglab(PATH=PATH, CLASS=CLASS, ch_last=ch_last, norm=True, epochs=trainset_ave,
+                X, Y, events = _read_data_eeglab(PATH=PATH, CLASS=CLASS, ch_last=ch_last, norm=True,
+                                                 epochs=trainset_ave,
                                                  sampling='random', plot=False, ch_select=ch_select, rep=rep)
                 if X_train is None:
                     X_train = X
@@ -280,7 +281,9 @@ def _build_dataset_eeglab(FOLDER, TRAIN, TEST, CLASS, ch_last=False,
     return X_train, Y_train, X_test, Y_test, class_weights, events_train, sample_weights_train, sample_weights_test
     # return X_train, Y_train, X_test, Y_test, events_train
 
-def _build_dataset_strat2(FOLDER, TRAIN, TEST, CLASS, ch_select=False, rep_train=1, rep_test=1, mult=1, from_rep0=False):
+
+def _build_dataset_strat2(FOLDER, TRAIN, TEST, CLASS, ch_select=False, rep_train=1, rep_test=1, mult=1,
+                          from_rep0=False):
     files = os.listdir(FOLDER)
     X_train = None
     Y_train = None
@@ -383,6 +386,7 @@ def _build_dataset_eeglab_plot(FOLDER, TRAIN, TEST, CLASS):
     print('Events:' + str(np.shape(events_out)))
     return X_out, Y_out, events_out
 
+
 def _get_event(events, event_id):
     out = events[:, 2]
     key_list = list(event_id.keys())
@@ -391,7 +395,9 @@ def _get_event(events, event_id):
         out[i] = int(key_list[val_list.index(out[i])].split('/')[0])
     return out
 
-def _read_data_eeglab(PATH, CLASS, ch_last=False, norm=True, epochs=1, sampling='consecutive', plot=False, ch_select=False, rep=1):
+
+def _read_data_eeglab(PATH, CLASS, ch_last=False, norm=True, epochs=1, sampling='consecutive', plot=False,
+                      ch_select=False, rep=1):
     data_pkg = mne.read_epochs_eeglab(PATH)
     events = _get_event(data_pkg.events, data_pkg.event_id)
     data = data_pkg._data
@@ -415,13 +421,13 @@ def _read_data_eeglab(PATH, CLASS, ch_last=False, norm=True, epochs=1, sampling=
             x = x[ch_select, :]
         if norm:
             # remove baseline by [-0.2, 0.0]s
-            x_norm = (x - np.repeat(np.reshape(np.mean(x[:, :25], axis=1), (CH, 1)), T, axis=1))/(
-                    # np.repeat(np.reshape(np.std(x[:, -T_re:], axis=1), (CH, 1)), T, axis=1))
-                    # np.repeat(np.reshape(np.std(x, axis=1), (CH, 1)), T, axis=1))
-                    0.000001)
+            x_norm = (x - np.repeat(np.reshape(np.mean(x[:, :25], axis=1), (CH, 1)), T, axis=1)) / (
+                # np.repeat(np.reshape(np.std(x[:, -T_re:], axis=1), (CH, 1)), T, axis=1))
+                # np.repeat(np.reshape(np.std(x, axis=1), (CH, 1)), T, axis=1))
+                0.000001)
             x = x_norm
             if plot is False:
-                x = x[:, -T_re:-T_re+75]
+                x = x[:, -T_re:-T_re + 75]
             elif plot is True:
                 pass
         if ch_last:
@@ -433,7 +439,7 @@ def _read_data_eeglab(PATH, CLASS, ch_last=False, norm=True, epochs=1, sampling=
     X_ave = []
     Y_ave = []
     for label in [4, 16, 32, 64, 128, 8]:
-    # for label in [4, 8, 16, 20, 24, 32, 36, 40, 64, 68, 72, 80, 84, 88, 96, 100, 104, 128, 132, 136, 144, 148, 152, 160, 164, 168]:
+        # for label in [4, 8, 16, 20, 24, 32, 36, 40, 64, 68, 72, 80, 84, 88, 96, 100, 104, 128, 132, 136, 144, 148, 152, 160, 164, 168]:
         inds = list(np.where(events == label)[0])
         for _ in range(rep):
             for i in range(len(inds)):
@@ -481,6 +487,7 @@ def _read_data_eeglab(PATH, CLASS, ch_last=False, norm=True, epochs=1, sampling=
         Y_out = Y_ave
         events_out = np.array(events_new)
     return X_out, Y_out, events_out
+
 
 def _read_data_strat2(PATH, CLASS, ch_select=False, norm=True, plot=False, test=False, from_rep0=False,
                       num_reps_train=1, num_reps_test=1, mult=1):
@@ -532,7 +539,7 @@ def _read_data_strat2(PATH, CLASS, ch_select=False, norm=True, plot=False, test=
                             combinations.extend(old)
                     else:
                         random.shuffle(combinations)
-                        combinations = combinations[:len(inds)*mult]
+                        combinations = combinations[:len(inds) * mult]
                     print(f'label: {label}. rep: {rep}. len: {len(combinations)}.')
                     for combo in combinations:
                         X_ave.append(np.mean(X[list(combo)], axis=0))
@@ -565,7 +572,7 @@ def _read_data_strat2(PATH, CLASS, ch_select=False, norm=True, plot=False, test=
             X_ave = np.concatenate([X_ave, X_ave[pos_ind]])
             Y_ave = np.concatenate([Y_ave, Y_ave[pos_ind]])
             events_new = np.concatenate([events_new, events_new[pos_ind]])
-    print('total: ' + str(len(Y_ave)) + '. target: ' + str((scale + 1)*len(pos_ind)))
+    print('total: ' + str(len(Y_ave)) + '. target: ' + str((scale + 1) * len(pos_ind)))
     if plot is True:
         X_out = X
         Y_out = Y
@@ -576,13 +583,14 @@ def _read_data_strat2(PATH, CLASS, ch_select=False, norm=True, plot=False, test=
         events_out = events_new
     return X_out, Y_out, events_out
 
+
 def _read_data_strat3(PATH, ch_select=False, norm=True, plot=False, test=False, num_reps=1):
     data_pkg = mne.read_epochs_eeglab(PATH)
     events = _get_event(data_pkg.events, data_pkg.event_id)
     event_types = np.unique(np.array(events)).tolist()
     to_exclude = [4, 8, 32, 128, 16, 64]
-    targets = [8]
-    non_targets = [4, 16, 32, 64, 128]
+    targets = [32]
+    non_targets = [16]
     non_targets_extended = event_types
     for event in to_exclude:
         if event in non_targets_extended:
@@ -681,6 +689,56 @@ def _read_data_strat3(PATH, ch_select=False, norm=True, plot=False, test=False, 
     return out
 
 
+def _build_dataset_kfold(FOLDER, TRAIN, VAL, TEST, num_reps=1):
+    files = os.listdir(FOLDER)
+    X_train = None
+    Y_train = None
+    X_val = None
+    Y_val = None
+    X_test = None
+    Y_test = None
+    X_test_ext = None
+    Y_test_ext = None
+    events_train = None
+    events_test = None
+    for file_name in files:
+        if file_name in TRAIN or file_name in TEST:
+            PATH = os.path.join(FOLDER, file_name)
+            if (file_name in TRAIN) and (file_name not in VAL):
+                out = _read_data_strat3(PATH=PATH, norm=True, plot=False, test=False,
+                                        num_reps=num_reps)
+                if X_train is None:
+                    X_train = out['X_train']
+                    Y_train = out['Y_train']
+                else:
+                    X_train = np.concatenate([X_train, out['X_train']], axis=0)
+                    Y_train = np.concatenate([Y_train, out['Y_train']], axis=0)
+            elif file_name in VAL:
+                out = _read_data_strat3(PATH=PATH, norm=True, plot=False, test=False,
+                                        num_reps=num_reps)
+                if X_val is None:
+                    X_val = out['X_train']
+                    Y_val = out['Y_train']
+                else:
+                    X_val = np.concatenate([X_val, out['X_train']], axis=0)
+                    Y_val = np.concatenate([Y_val, out['Y_train']], axis=0)
+            elif file_name in TEST:
+                out = _read_data_strat3(PATH=PATH, norm=True, plot=False, test=True,
+                                        num_reps=num_reps)
+                if X_test is None:
+                    X_test = out['X_test']
+                    Y_test = out['Y_test']
+                    X_test_ext = out['X_test_ext']
+                    Y_test_ext = out['Y_test_ext']
+                else:
+                    X_test = np.concatenate([X_test, out['X_test']], axis=0)
+                    Y_test = np.concatenate([Y_test, out['Y_test']], axis=0)
+                    X_test_ext = np.concatenate([X_test, out['X_test_ext']], axis=0)
+                    Y_test_ext = np.concatenate([Y_test, out['Y_test_ext']], axis=0)
+
+    return X_train, Y_train, X_val, Y_val, X_test, Y_test, X_test_ext, Y_test_ext
+
+
 def _combos(events, label, num_reps):
     inds = list(np.where(events == label)[0])
     n_0 = 1000
@@ -689,7 +747,7 @@ def _combos(events, label, num_reps):
         random.shuffle(combinations)
         combinations_out = combinations[:n_0]
     elif num_reps < 5:
-        n_1 = n_0//(len(inds) - 1)
+        n_1 = n_0 // (len(inds) - 1)
         combinations_out = []
         for i in range(len(inds) - 1):
             a = inds[i:i + 2]
@@ -726,8 +784,8 @@ def _make_average(X, Y, CLASS, events, fold=1, epochs=1, consec=False):
     summation = np.sum(Y, axis=0)
     X_new = []
     Y_new = []
-    num_sample = fold*max(summation)
-    num_sample = 20*fold
+    num_sample = fold * max(summation)
+    num_sample = 20 * fold
     # for i in range(np.shape(Y)[1]):
     for i in range(len(CLASS)):
         class_ind = list(np.where(events == aaa[i])[0])
@@ -751,7 +809,7 @@ def _make_average(X, Y, CLASS, events, fold=1, epochs=1, consec=False):
 
 
 def _random_average(X, Y, fold=1):
-    target_ind = list(np.where(Y[:, 0]==1)[0])
+    target_ind = list(np.where(Y[:, 0] == 1)[0])
     X_new = []
     Y_new = []
     for i in range(fold):
@@ -768,7 +826,7 @@ def _random_average(X, Y, fold=1):
 def _copy_balance(X, Y):
     target_ind = list(np.where(Y[:, 0] == 1)[0])
     label_sum = np.sum(Y, axis=0)
-    fold = round(label_sum[1]/label_sum[0])
+    fold = round(label_sum[1] / label_sum[0])
     X = np.concatenate([X, np.repeat(X[target_ind], fold - 1, axis=0)], axis=0)
     Y = np.concatenate([Y, np.repeat(Y[target_ind], fold - 1, axis=0)], axis=0)
     return X, Y
@@ -795,7 +853,6 @@ def _consec_average(X, Y, epochs=2):
     Y = np.concatenate([Y[nontarget_ind], np.array(Y_new)], axis=0)
 
     return X, Y
-
 
 # PATH = r'D:\Code\PycharmProjects\P300_detect\data\a\01_01.set'
 # data_pkg = mne.read_epochs_eeglab(PATH)
